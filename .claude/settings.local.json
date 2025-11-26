@@ -8,7 +8,8 @@
       "Bash(python3:*)",
       "Bash(git add:*)",
       "Bash(git commit -m \"$(cat <<''EOF''\nRedesign UI: Implement 3-view wizard system (no scrolling)\n\nMajor UI overhaul to improve user experience:\n\n**New Features:**\n- 3-step wizard workflow: Configure → Calculate → Download\n- Visual progress stepper showing current step\n- No scrolling required - all content fits on screen (1200x750px)\n- Horizontal layout for better space utilization\n\n**View 1: Configuration**\n- Left column: Output dir, date range, presets, options\n- Right column: Table selection cards with descriptions\n- Input validation before proceeding to next view\n\n**View 2: Size Calculation**\n- Configuration summary display\n- Calculate button with visual size breakdown\n- Shows compressed, uncompressed, and total disk space\n- Start Download button (enabled after calculation)\n\n**View 3: Download Progress**\n- Overall progress bar at top\n- Left panel: File progress + Pause/Cancel buttons\n- Right panel: Activity log with real-time updates\n- Two-column layout for better visibility\n\n**Technical Changes:**\n- Window size: 1000x800 → 1200x750 (fixed, non-resizable)\n- Removed CTkScrollableFrame\n- Added view management system\n- Navigation functions with validation\n- Updated button states and layout\n\nResolves scrolling issue while maintaining all functionality.\nEOF\n)\")",
-      "Bash(brew install:*)"
+      "Bash(brew install:*)",
+      "Bash(git commit:*)"
     ],
     "deny": [],
     "ask": []

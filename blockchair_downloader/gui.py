@@ -336,7 +336,7 @@ class DownloaderGUI:
     def __init__(self):
         self.root = ctk.CTk()
         self.root.title("Bitcoin Blockchain Data Downloader")
-        self.root.geometry("1200x750")
+        self.root.geometry("900x700")
         self.root.resizable(False, False)
 
         # Center window
@@ -395,31 +395,54 @@ class DownloaderGUI:
         )
         subtitle.pack()
 
-        # Progress Stepper
-        self.stepper_frame = ctk.CTkFrame(self.root, corner_radius=10, fg_color=("#E0E0E0", "#2B2B2B"))
+        # Progress Stepper (Frame-based, not buttons)
+        self.stepper_frame = ctk.CTkFrame(self.root, corner_radius=10, fg_color="transparent")
         self.stepper_frame.grid(row=1, column=0, sticky="ew", padx=30, pady=(0, 15))
         self.stepper_frame.grid_columnconfigure((0, 1, 2), weight=1)
 
-        self.step1_btn = ctk.CTkButton(
-            self.stepper_frame, text="1. Configure", height=40,
-            fg_color=("#1f538d", "#3b8ed0"), hover_color=("#1f538d", "#3b8ed0"),
-            font=ctk.CTkFont(size=13, weight="bold")
+        # Step 1: Configure
+        self.step1_container = ctk.CTkFrame(
+            self.stepper_frame, corner_radius=8,
+            border_width=2, border_color=("#ffb74d", "#ff9800")  # Orange for active
         )
-        self.step1_btn.grid(row=0, column=0, padx=10, pady=10, sticky="ew")
+        self.step1_container.grid(row=0, column=0, padx=5, pady=5, sticky="ew")
 
-        self.step2_btn = ctk.CTkButton(
-            self.stepper_frame, text="2. Calculate Size", height=40,
-            fg_color=("#505050", "#404040"), hover_color=("#505050", "#404040"),
-            font=ctk.CTkFont(size=13), state="disabled"
+        self.step1_label = ctk.CTkLabel(
+            self.step1_container, text="1. Configure",
+            font=ctk.CTkFont(size=13, weight="bold"),
+            height=35
         )
-        self.step2_btn.grid(row=0, column=1, padx=10, pady=10, sticky="ew")
+        self.step1_label.pack(pady=8)
 
-        self.step3_btn = ctk.CTkButton(
-            self.stepper_frame, text="3. Download", height=40,
-            fg_color=("#505050", "#404040"), hover_color=("#505050", "#404040"),
-            font=ctk.CTkFont(size=13), state="disabled"
+        # Step 2: Calculate Size
+        self.step2_container = ctk.CTkFrame(
+            self.stepper_frame, corner_radius=8,
+            border_width=2, border_color=("gray70", "gray25")  # Gray for upcoming
         )
-        self.step3_btn.grid(row=0, column=2, padx=10, pady=10, sticky="ew")
+        self.step2_container.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
+
+        self.step2_label = ctk.CTkLabel(
+            self.step2_container, text="2. Calculate Size",
+            font=ctk.CTkFont(size=13),
+            text_color=("gray50", "gray50"),  # Muted
+            height=35
+        )
+        self.step2_label.pack(pady=8)
+
+        # Step 3: Download
+        self.step3_container = ctk.CTkFrame(
+            self.stepper_frame, corner_radius=8,
+            border_width=2, border_color=("gray70", "gray25")  # Gray for upcoming
+        )
+        self.step3_container.grid(row=0, column=2, padx=5, pady=5, sticky="ew")
+
+        self.step3_label = ctk.CTkLabel(
+            self.step3_container, text="3. Download",
+            font=ctk.CTkFont(size=13),
+            text_color=("gray50", "gray50"),  # Muted
+            height=35
+        )
+        self.step3_label.pack(pady=8)
 
         # Main content frame (will hold different views)
         self.content_frame = ctk.CTkFrame(self.root, corner_radius=10, fg_color="transparent")
@@ -439,32 +462,78 @@ class DownloaderGUI:
         """Update stepper UI to highlight current step."""
         self.current_step = step
 
-        # Reset all steps
-        for btn in [self.step1_btn, self.step2_btn, self.step3_btn]:
-            btn.configure(
-                fg_color=("#505050", "#404040"),
-                hover_color=("#505050", "#404040"),
-                font=ctk.CTkFont(size=13)
+        # Colors
+        completed_border = ("#66bb6a", "#4caf50")  # Green
+        active_border = ("#ffb74d", "#ff9800")      # Orange
+        upcoming_border = ("gray70", "gray25")      # Gray
+
+        # Step 1
+        if step > 1:  # Completed
+            self.step1_container.configure(border_color=completed_border)
+            self.step1_label.configure(
+                text="✓ Configure",
+                font=ctk.CTkFont(size=13),
+                text_color=("#66bb6a", "#4caf50")
+            )
+        elif step == 1:  # Active
+            self.step1_container.configure(border_color=active_border)
+            self.step1_label.configure(
+                text="1. Configure",
+                font=ctk.CTkFont(size=13, weight="bold"),
+                text_color=("gray10", "gray90")
+            )
+        else:  # Upcoming
+            self.step1_container.configure(border_color=upcoming_border)
+            self.step1_label.configure(
+                text="1. Configure",
+                font=ctk.CTkFont(size=13),
+                text_color=("gray50", "gray50")
             )
 
-        # Highlight current step
-        if step == 1:
-            self.step1_btn.configure(
-                fg_color=("#1f538d", "#3b8ed0"),
-                hover_color=("#1f538d", "#3b8ed0"),
-                font=ctk.CTkFont(size=13, weight="bold")
+        # Step 2
+        if step > 2:  # Completed
+            self.step2_container.configure(border_color=completed_border)
+            self.step2_label.configure(
+                text="✓ Calculate Size",
+                font=ctk.CTkFont(size=13),
+                text_color=("#66bb6a", "#4caf50")
             )
-        elif step == 2:
-            self.step2_btn.configure(
-                fg_color=("#1f538d", "#3b8ed0"),
-                hover_color=("#1f538d", "#3b8ed0"),
-                font=ctk.CTkFont(size=13, weight="bold")
+        elif step == 2:  # Active
+            self.step2_container.configure(border_color=active_border)
+            self.step2_label.configure(
+                text="2. Calculate Size",
+                font=ctk.CTkFont(size=13, weight="bold"),
+                text_color=("gray10", "gray90")
             )
-        elif step == 3:
-            self.step3_btn.configure(
-                fg_color=("#1f538d", "#3b8ed0"),
-                hover_color=("#1f538d", "#3b8ed0"),
-                font=ctk.CTkFont(size=13, weight="bold")
+        else:  # Upcoming
+            self.step2_container.configure(border_color=upcoming_border)
+            self.step2_label.configure(
+                text="2. Calculate Size",
+                font=ctk.CTkFont(size=13),
+                text_color=("gray50", "gray50")
+            )
+
+        # Step 3
+        if step > 3:  # Completed
+            self.step3_container.configure(border_color=completed_border)
+            self.step3_label.configure(
+                text="✓ Download",
+                font=ctk.CTkFont(size=13),
+                text_color=("#66bb6a", "#4caf50")
+            )
+        elif step == 3:  # Active
+            self.step3_container.configure(border_color=active_border)
+            self.step3_label.configure(
+                text="3. Download",
+                font=ctk.CTkFont(size=13, weight="bold"),
+                text_color=("gray10", "gray90")
+            )
+        else:  # Upcoming
+            self.step3_container.configure(border_color=upcoming_border)
+            self.step3_label.configure(
+                text="3. Download",
+                font=ctk.CTkFont(size=13),
+                text_color=("gray50", "gray50")
             )
 
     def show_config_view(self):
@@ -479,7 +548,7 @@ class DownloaderGUI:
 
         # Main Column (centered, max width)
         main_col = ctk.CTkFrame(view, corner_radius=10)
-        main_col.grid(row=0, column=0, sticky="nsew", padx=150)
+        main_col.grid(row=0, column=0, sticky="nsew", padx=80)
 
         # Output Directory
         ctk.CTkLabel(
