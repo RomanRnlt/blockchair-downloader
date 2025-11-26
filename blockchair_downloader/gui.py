@@ -349,14 +349,9 @@ class DownloaderGUI:
 
         # Variables
         self.output_dir = ctk.StringVar()
-        self.start_date = ctk.StringVar(value="2021-01-01")
-        self.end_date = ctk.StringVar(value="2021-12-31")
+        self.start_date = ctk.StringVar()
+        self.end_date = ctk.StringVar()
         self.remove_gz = ctk.BooleanVar(value=True)
-
-        # Table selection
-        self.table_blocks = ctk.BooleanVar(value=True)
-        self.table_transactions = ctk.BooleanVar(value=True)
-        self.table_outputs = ctk.BooleanVar(value=True)
 
         # Download state
         self.is_downloading = False
@@ -515,14 +510,14 @@ class DownloaderGUI:
         date_container.pack(fill="x", padx=20, pady=(0, 10))
 
         ctk.CTkLabel(date_container, text="Start Date:").grid(row=0, column=0, sticky="w", pady=5)
-        ctk.CTkEntry(date_container, textvariable=self.start_date, height=35, width=150).grid(
-            row=0, column=1, sticky="w", padx=10, pady=5
-        )
+        start_entry = ctk.CTkEntry(date_container, textvariable=self.start_date, height=35, width=150,
+                                   placeholder_text="YYYY-MM-DD")
+        start_entry.grid(row=0, column=1, sticky="w", padx=10, pady=5)
 
         ctk.CTkLabel(date_container, text="End Date:").grid(row=1, column=0, sticky="w", pady=5)
-        ctk.CTkEntry(date_container, textvariable=self.end_date, height=35, width=150).grid(
-            row=1, column=1, sticky="w", padx=10, pady=5
-        )
+        end_entry = ctk.CTkEntry(date_container, textvariable=self.end_date, height=35, width=150,
+                                placeholder_text="YYYY-MM-DD")
+        end_entry.grid(row=1, column=1, sticky="w", padx=10, pady=5)
 
         # Presets
         ctk.CTkLabel(
@@ -530,22 +525,42 @@ class DownloaderGUI:
             font=ctk.CTkFont(size=13, weight="bold")
         ).pack(anchor="w", padx=20, pady=(10, 5))
 
-        preset_container = ctk.CTkFrame(left_col, fg_color="transparent")
-        preset_container.pack(fill="x", padx=20, pady=(0, 20))
+        # First row of presets
+        preset_row1 = ctk.CTkFrame(left_col, fg_color="transparent")
+        preset_row1.pack(fill="x", padx=20, pady=(0, 5))
 
         ctk.CTkButton(
-            preset_container, text="Year 2021", height=32,
-            command=lambda: self.set_preset("2021-01-01", "2021-12-31")
+            preset_row1, text="1 Week", height=32,
+            command=lambda: self.set_preset_relative(days=7)
         ).pack(side="left", padx=(0, 5), expand=True, fill="x")
 
         ctk.CTkButton(
-            preset_container, text="Q1 2021", height=32,
-            command=lambda: self.set_preset("2021-01-01", "2021-03-31")
+            preset_row1, text="1 Month", height=32,
+            command=lambda: self.set_preset_relative(days=30)
         ).pack(side="left", padx=5, expand=True, fill="x")
 
         ctk.CTkButton(
-            preset_container, text="Jan 2021", height=32,
-            command=lambda: self.set_preset("2021-01-01", "2021-01-31")
+            preset_row1, text="3 Months", height=32,
+            command=lambda: self.set_preset_relative(days=90)
+        ).pack(side="left", padx=(5, 0), expand=True, fill="x")
+
+        # Second row of presets
+        preset_row2 = ctk.CTkFrame(left_col, fg_color="transparent")
+        preset_row2.pack(fill="x", padx=20, pady=(0, 20))
+
+        ctk.CTkButton(
+            preset_row2, text="Q1 2021", height=32,
+            command=lambda: self.set_preset("2021-01-01", "2021-03-31")
+        ).pack(side="left", padx=(0, 5), expand=True, fill="x")
+
+        ctk.CTkButton(
+            preset_row2, text="Year 2021", height=32,
+            command=lambda: self.set_preset("2021-01-01", "2021-12-31")
+        ).pack(side="left", padx=5, expand=True, fill="x")
+
+        ctk.CTkButton(
+            preset_row2, text="Year 2024", height=32,
+            command=lambda: self.set_preset("2024-01-01", "2024-12-31")
         ).pack(side="left", padx=(5, 0), expand=True, fill="x")
 
         # Options
@@ -560,57 +575,47 @@ class DownloaderGUI:
             variable=self.remove_gz
         ).pack(anchor="w", padx=20, pady=(0, 20))
 
-        # Right Column - Tables
+        # Right Column - Download Info
         right_col = ctk.CTkFrame(view, corner_radius=10)
         right_col.grid(row=0, column=1, rowspan=4, sticky="nsew", padx=(10, 0))
 
         ctk.CTkLabel(
-            right_col, text="📊 Tables to Download",
+            right_col, text="📊 Download Information",
             font=ctk.CTkFont(size=16, weight="bold")
         ).pack(anchor="w", padx=20, pady=(20, 15))
 
-        # Blocks Card
-        blocks_card = ctk.CTkFrame(right_col, corner_radius=8, fg_color=("#D0D0D0", "#333333"))
-        blocks_card.pack(fill="x", padx=20, pady=(0, 10))
+        # Info text
+        info_text = (
+            "This tool will download all 3 tables from Blockchair:\n\n"
+            "• Blocks (~1 MB/day)\n"
+            "  Block headers and metadata\n\n"
+            "• Transactions (~150 MB/day)\n"
+            "  Transaction inputs and outputs\n\n"
+            "• Outputs (~250 MB/day)\n"
+            "  UTXO details and addresses\n\n"
+            "Total: ~400 MB per day (compressed)"
+        )
 
-        ctk.CTkCheckBox(
-            blocks_card, text="Blocks",
-            variable=self.table_blocks,
-            font=ctk.CTkFont(size=14, weight="bold")
+        info_frame = ctk.CTkFrame(right_col, corner_radius=8, fg_color=("#E8F4FD", "#1a3a4a"))
+        info_frame.pack(fill="both", expand=True, padx=20, pady=(0, 15))
+
+        ctk.CTkLabel(
+            info_frame, text=info_text,
+            font=ctk.CTkFont(size=13), justify="left",
+            anchor="w"
+        ).pack(anchor="w", padx=20, pady=20)
+
+        # Data source info
+        source_frame = ctk.CTkFrame(right_col, corner_radius=8, fg_color=("#D0D0D0", "#333333"))
+        source_frame.pack(fill="x", padx=20, pady=(0, 20))
+
+        ctk.CTkLabel(
+            source_frame, text="📡 Data Source",
+            font=ctk.CTkFont(size=13, weight="bold")
         ).pack(anchor="w", padx=15, pady=(15, 5))
 
         ctk.CTkLabel(
-            blocks_card, text="~1 MB per day\nBlock headers and metadata",
-            font=ctk.CTkFont(size=11), text_color="gray", justify="left"
-        ).pack(anchor="w", padx=15, pady=(0, 15))
-
-        # Transactions Card
-        tx_card = ctk.CTkFrame(right_col, corner_radius=8, fg_color=("#D0D0D0", "#333333"))
-        tx_card.pack(fill="x", padx=20, pady=(0, 10))
-
-        ctk.CTkCheckBox(
-            tx_card, text="Transactions",
-            variable=self.table_transactions,
-            font=ctk.CTkFont(size=14, weight="bold")
-        ).pack(anchor="w", padx=15, pady=(15, 5))
-
-        ctk.CTkLabel(
-            tx_card, text="~150 MB per day\nTransaction inputs and outputs",
-            font=ctk.CTkFont(size=11), text_color="gray", justify="left"
-        ).pack(anchor="w", padx=15, pady=(0, 15))
-
-        # Outputs Card
-        outputs_card = ctk.CTkFrame(right_col, corner_radius=8, fg_color=("#D0D0D0", "#333333"))
-        outputs_card.pack(fill="x", padx=20, pady=(0, 10))
-
-        ctk.CTkCheckBox(
-            outputs_card, text="Outputs",
-            variable=self.table_outputs,
-            font=ctk.CTkFont(size=14, weight="bold")
-        ).pack(anchor="w", padx=15, pady=(15, 5))
-
-        ctk.CTkLabel(
-            outputs_card, text="~250 MB per day\nUTXO details and addresses",
+            source_frame, text="gz.blockchair.com/bitcoin/\nTSV format, gzip compressed",
             font=ctk.CTkFont(size=11), text_color="gray", justify="left"
         ).pack(anchor="w", padx=15, pady=(0, 15))
 
@@ -830,9 +835,6 @@ class DownloaderGUI:
             return
 
         tables = self.get_selected_tables()
-        if not tables:
-            messagebox.showerror("Error", "Please select at least one table")
-            return
 
         if start > end:
             messagebox.showerror("Error", "Start date must be before end date")
@@ -870,10 +872,6 @@ class DownloaderGUI:
             start = self.parse_date(self.start_date.get())
             end = self.parse_date(self.end_date.get())
             tables = self.get_selected_tables()
-
-            if not tables:
-                messagebox.showerror("Error", "Please select at least one table")
-                return
 
             if start > end:
                 messagebox.showerror("Error", "Start date must be before end date")
@@ -960,11 +958,6 @@ class DownloaderGUI:
                             self.start_date.set(start_date)
                             self.end_date.set(end_date)
 
-                            # Set table checkboxes
-                            self.table_blocks.set('blocks' in tables)
-                            self.table_transactions.set('transactions' in tables)
-                            self.table_outputs.set('outputs' in tables)
-
                             # Set remove_gz option
                             self.remove_gz.set(remove_gz)
 
@@ -988,16 +981,17 @@ class DownloaderGUI:
         self.start_date.set(start)
         self.end_date.set(end)
 
+    def set_preset_relative(self, days: int):
+        """Set date preset relative to today (last N days)."""
+        from datetime import datetime, timedelta
+        end = datetime.now()
+        start = end - timedelta(days=days - 1)  # -1 because we include today
+        self.start_date.set(start.strftime("%Y-%m-%d"))
+        self.end_date.set(end.strftime("%Y-%m-%d"))
+
     def get_selected_tables(self) -> List[str]:
-        """Get selected tables."""
-        tables = []
-        if self.table_blocks.get():
-            tables.append("blocks")
-        if self.table_transactions.get():
-            tables.append("transactions")
-        if self.table_outputs.get():
-            tables.append("outputs")
-        return tables
+        """Get all tables (always downloads all 3)."""
+        return ["blocks", "transactions", "outputs"]
 
     def parse_date(self, date_str: str) -> datetime:
         """Parse date string."""
