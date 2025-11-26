@@ -582,7 +582,7 @@ class DownloaderGUI:
         start_entry = ctk.CTkEntry(
             date_container, textvariable=self.start_date, height=35, width=150,
             placeholder_text="YYYY-MM-DD",
-            placeholder_text_color=("gray60", "gray40")
+            placeholder_text_color=("gray50", "gray60")  # Lighter for dark mode
         )
         start_entry.grid(row=0, column=1, sticky="w", padx=10, pady=5)
 
@@ -590,7 +590,7 @@ class DownloaderGUI:
         end_entry = ctk.CTkEntry(
             date_container, textvariable=self.end_date, height=35, width=150,
             placeholder_text="YYYY-MM-DD",
-            placeholder_text_color=("gray60", "gray40")
+            placeholder_text_color=("gray50", "gray60")  # Lighter for dark mode
         )
         end_entry.grid(row=1, column=1, sticky="w", padx=10, pady=5)
 
