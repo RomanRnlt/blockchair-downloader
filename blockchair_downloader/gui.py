@@ -75,7 +75,8 @@ class BlockchairDownloader:
     TABLES = {
         "blocks": 0.8,        # MB per day (approximate)
         "transactions": 150,   # MB per day
-        "outputs": 250        # MB per day
+        "outputs": 250,       # MB per day
+        "inputs": 200         # MB per day (approximate)
     }
 
     def __init__(self, output_dir: str):
@@ -118,7 +119,7 @@ class BlockchairDownloader:
 
     def build_url(self, table: str, date: datetime) -> str:
         """Build download URL for specific table and date."""
-        date_str = date.strftime("%Y-%m-%d")
+        date_str = date.strftime("%Y%m%d")  # Format: YYYYMMDD (no dashes)
         filename = f"blockchair_bitcoin_{table}_{date_str}.tsv.gz"
         return self.BASE_URL + f"{table}/{filename}"
 
@@ -349,9 +350,9 @@ class DownloaderGUI:
 
         # Variables
         self.output_dir = ctk.StringVar()
-        self.start_date = ctk.StringVar()
-        self.end_date = ctk.StringVar()
         self.remove_gz = ctk.BooleanVar(value=True)
+        self.saved_start_date = ""
+        self.saved_end_date = ""
 
         # Download state
         self.is_downloading = False
@@ -579,20 +580,20 @@ class DownloaderGUI:
         date_container.pack(fill="x", padx=20, pady=(0, 10))
 
         ctk.CTkLabel(date_container, text="Start Date:").grid(row=0, column=0, sticky="w", pady=5)
-        start_entry = ctk.CTkEntry(
-            date_container, textvariable=self.start_date, height=35, width=150,
+        self.start_entry = ctk.CTkEntry(
+            date_container, height=35, width=150,
             placeholder_text="YYYY-MM-DD",
             placeholder_text_color=("gray50", "gray60")  # Lighter for dark mode
         )
-        start_entry.grid(row=0, column=1, sticky="w", padx=10, pady=5)
+        self.start_entry.grid(row=0, column=1, sticky="w", padx=10, pady=5)
 
         ctk.CTkLabel(date_container, text="End Date:").grid(row=1, column=0, sticky="w", pady=5)
-        end_entry = ctk.CTkEntry(
-            date_container, textvariable=self.end_date, height=35, width=150,
+        self.end_entry = ctk.CTkEntry(
+            date_container, height=35, width=150,
             placeholder_text="YYYY-MM-DD",
             placeholder_text_color=("gray50", "gray60")  # Lighter for dark mode
         )
-        end_entry.grid(row=1, column=1, sticky="w", padx=10, pady=5)
+        self.end_entry.grid(row=1, column=1, sticky="w", padx=10, pady=5)
 
         # Presets
         ctk.CTkLabel(
@@ -684,55 +685,61 @@ class DownloaderGUI:
         # Main content area
         content = ctk.CTkFrame(view, corner_radius=10)
         content.grid(row=1, column=0, sticky="nsew")
+
+        # Two-column layout: Summary on left, Results on right
         content.grid_columnconfigure(0, weight=1)
+        content.grid_columnconfigure(1, weight=1)
         content.grid_rowconfigure(0, weight=1)
 
-        # Size display area
-        size_area = ctk.CTkFrame(content, fg_color="transparent")
-        size_area.grid(row=0, column=0, sticky="nsew", padx=40, pady=40)
+        # Left Column: Configuration Summary
+        left_col = ctk.CTkFrame(content, fg_color="transparent")
+        left_col.grid(row=0, column=0, sticky="nsew", padx=(20, 10), pady=20)
 
-        # Configuration Summary
-        summary_frame = ctk.CTkFrame(size_area, corner_radius=8, fg_color=("#D0D0D0", "#333333"))
-        summary_frame.pack(fill="x", pady=(0, 20))
+        summary_frame = ctk.CTkFrame(left_col, corner_radius=8, fg_color=("#D0D0D0", "#333333"))
+        summary_frame.pack(fill="both", expand=True)
 
         ctk.CTkLabel(
             summary_frame, text="Configuration Summary",
             font=ctk.CTkFont(size=16, weight="bold")
         ).pack(anchor="w", padx=20, pady=(15, 10))
 
-        # Container for grid layout
+        # Config details
         self.summary_container = ctk.CTkFrame(summary_frame, fg_color="transparent")
-        self.summary_container.pack(fill="x", padx=20, pady=(0, 15))
+        self.summary_container.pack(fill="x", padx=20, pady=(0, 10))
 
-        # Size Result
-        self.size_result_frame = ctk.CTkFrame(size_area, corner_radius=8, fg_color=("#E8F4FD", "#1a3a4a"))
-        self.size_result_frame.pack(fill="both", expand=True, pady=(0, 20))
+        # Folder structure preview
+        ctk.CTkLabel(
+            summary_frame, text="📂 Folder Structure",
+            font=ctk.CTkFont(size=11, weight="bold"),
+            text_color=("gray40", "gray60")
+        ).pack(anchor="w", padx=20, pady=(5, 5))
 
-        self.size_result_label = ctk.CTkLabel(
-            self.size_result_frame, text="Click 'Calculate' to see download size",
-            font=ctk.CTkFont(size=16), text_color="gray"
-        )
-        self.size_result_label.pack(expand=True, pady=40)
+        self.folder_preview_container = ctk.CTkFrame(summary_frame, fg_color="transparent")
+        self.folder_preview_container.pack(fill="x", padx=20, pady=(0, 10))
 
-        # Calculate Button
-        calc_btn_frame = ctk.CTkFrame(size_area, fg_color="transparent")
-        calc_btn_frame.pack(fill="x")
-
+        # Calculate button at bottom of summary
         ctk.CTkButton(
-            calc_btn_frame, text="🔄 Calculate Size",
+            summary_frame, text="🔄 Calculate Size",
             command=self.calculate_size_new,
             height=45, font=ctk.CTkFont(size=14, weight="bold"),
             fg_color=("#1f538d", "#3b8ed0")
-        ).pack(side="left", expand=True, fill="x", padx=(0, 10))
+        ).pack(fill="x", padx=20, pady=(5, 15))
 
-        self.start_download_btn = ctk.CTkButton(
-            calc_btn_frame, text="Start Download →",
-            command=self.goto_download_view,
-            height=45, font=ctk.CTkFont(size=14, weight="bold"),
-            fg_color=("#2CC985", "#2FA572"), hover_color=("#28B872", "#298F65"),
-            state="disabled"
-        )
-        self.start_download_btn.pack(side="left", expand=True, fill="x", padx=(10, 0))
+        # Right Column: Size Results
+        right_col = ctk.CTkFrame(content, fg_color="transparent")
+        right_col.grid(row=0, column=1, sticky="nsew", padx=(10, 20), pady=20)
+
+        results_frame = ctk.CTkFrame(right_col, corner_radius=8, fg_color=("#E8F4FD", "#1a3a4a"))
+        results_frame.pack(fill="both", expand=True)
+
+        ctk.CTkLabel(
+            results_frame, text="💾 Download Size",
+            font=ctk.CTkFont(size=16, weight="bold")
+        ).pack(anchor="w", padx=20, pady=(15, 10))
+
+        # Size Result container
+        self.size_result_frame = ctk.CTkFrame(results_frame, fg_color="transparent")
+        self.size_result_frame.pack(fill="both", expand=True, padx=20, pady=(0, 15))
 
         # Bottom Navigation
         nav_frame = ctk.CTkFrame(view, fg_color="transparent")
@@ -744,6 +751,16 @@ class DownloaderGUI:
             height=40, font=ctk.CTkFont(size=13),
             fg_color=("#505050", "#404040")
         ).pack(side="left")
+
+        # Start Download button (bottom right)
+        self.start_download_btn = ctk.CTkButton(
+            nav_frame, text="Next: Start Download →",
+            command=self.goto_download_view,
+            height=40, font=ctk.CTkFont(size=13),
+            fg_color=("#2CC985", "#2FA572"), hover_color=("#28B872", "#298F65"),
+            state="disabled"
+        )
+        self.start_download_btn.pack(side="right")
 
         # Auto-populate summary
         self.update_config_summary()
@@ -812,9 +829,26 @@ class DownloaderGUI:
 
         self.file_progress_label = ctk.CTkLabel(
             file_prog_container, text="Waiting...",
-            font=ctk.CTkFont(size=11), anchor="w"
+            font=ctk.CTkFont(size=11), anchor="w",
+            width=250  # Fixed width to prevent resizing
         )
         self.file_progress_label.pack(fill="x", padx=15, pady=(0, 10))
+
+        # Download Speed
+        speed_container = ctk.CTkFrame(stats_panel, fg_color=("#D0D0D0", "#333333"), corner_radius=8)
+        speed_container.pack(fill="x", padx=15, pady=(0, 10))
+
+        ctk.CTkLabel(
+            speed_container, text="Download Speed",
+            font=ctk.CTkFont(size=12, weight="bold")
+        ).pack(anchor="w", padx=15, pady=(10, 5))
+
+        self.speed_label = ctk.CTkLabel(
+            speed_container, text="0.0 MB/s",
+            font=ctk.CTkFont(size=14, weight="bold"),
+            text_color=("#2CC985", "#2FA572")
+        )
+        self.speed_label.pack(anchor="w", padx=15, pady=(0, 10))
 
         # Control Buttons
         button_container = ctk.CTkFrame(stats_panel, fg_color="transparent")
@@ -857,8 +891,8 @@ class DownloaderGUI:
             return
 
         try:
-            start = self.parse_date(self.start_date.get())
-            end = self.parse_date(self.end_date.get())
+            start = self.parse_date(self.start_entry.get())
+            end = self.parse_date(self.end_entry.get())
         except ValueError as e:
             messagebox.showerror("Error", str(e))
             return
@@ -868,6 +902,10 @@ class DownloaderGUI:
         if start > end:
             messagebox.showerror("Error", "Start date must be before end date")
             return
+
+        # Save entry values before destroying the view
+        self.saved_start_date = self.start_entry.get()
+        self.saved_end_date = self.end_entry.get()
 
         # Navigate to calculate view
         self.show_calculate_view()
@@ -881,8 +919,8 @@ class DownloaderGUI:
     def update_config_summary(self):
         """Update configuration summary in calculate view."""
         try:
-            start = self.parse_date(self.start_date.get())
-            end = self.parse_date(self.end_date.get())
+            start = self.parse_date(self.saved_start_date)
+            end = self.parse_date(self.saved_end_date)
             days = (end - start).days + 1
             tables = self.get_selected_tables()
 
@@ -893,7 +931,7 @@ class DownloaderGUI:
             # Create grid layout for summary
             items = [
                 ("📁", "Directory:", self.output_dir.get() or 'Not set'),
-                ("📅", "Period:", f"{self.start_date.get()} to {self.end_date.get()} ({days} days)"),
+                ("📅", "Period:", f"{self.saved_start_date} to {self.saved_end_date} ({days} days)"),
                 ("📊", "Tables:", f"{', '.join(tables) if tables else 'None selected'}"),
                 ("⚙️", "Remove .gz:", 'Yes' if self.remove_gz.get() else 'No')
             ]
@@ -902,83 +940,309 @@ class DownloaderGUI:
                 # Icon
                 ctk.CTkLabel(
                     self.summary_container, text=icon,
-                    font=ctk.CTkFont(size=14)
-                ).grid(row=i, column=0, sticky="w", padx=(15, 5), pady=8)
+                    font=ctk.CTkFont(size=13)
+                ).grid(row=i, column=0, sticky="w", padx=(5, 5), pady=5)
 
                 # Label
                 ctk.CTkLabel(
                     self.summary_container, text=label,
-                    font=ctk.CTkFont(size=13, weight="bold"),
+                    font=ctk.CTkFont(size=12, weight="bold"),
                     anchor="w"
-                ).grid(row=i, column=1, sticky="w", padx=5, pady=8)
+                ).grid(row=i, column=1, sticky="w", padx=3, pady=5)
 
                 # Value
                 ctk.CTkLabel(
                     self.summary_container, text=value,
-                    font=ctk.CTkFont(size=13),
+                    font=ctk.CTkFont(size=12),
                     anchor="w", text_color=("gray30", "gray70")
-                ).grid(row=i, column=2, sticky="w", padx=(5, 15), pady=8)
+                ).grid(row=i, column=2, sticky="w", padx=(3, 5), pady=5)
 
             self.summary_container.grid_columnconfigure(2, weight=1)
 
-        except:
+            # Update folder structure preview
+            self.update_folder_preview(start, end)
+
+        except Exception as e:
             # Fallback for errors
+            print(f"Error in update_config_summary: {e}")
+            import traceback
+            traceback.print_exc()
             ctk.CTkLabel(
                 self.summary_container, text="Invalid configuration",
                 font=ctk.CTkFont(size=13), text_color="red"
             ).grid(row=0, column=0, padx=15, pady=15)
 
-    def calculate_size_new(self):
-        """Calculate and display download size."""
+    def update_folder_preview(self, start, end):
+        """Update folder structure preview in calculate view."""
+        # Clear old preview
+        for widget in self.folder_preview_container.winfo_children():
+            widget.destroy()
+
+        # Calculate total files
+        total_days = (end - start).days + 1
+
+        # Create subfolder name
+        subfolder = f"bitcoin_blockchain_{self.saved_start_date}_to_{self.saved_end_date}"
+
+        # Create simple tree structure (folders only)
+        lines = [
+            "output_dir/",
+            f"└── {subfolder}/",
+            "    ├── blocks/",
+            "    ├── transactions/",
+            "    ├── outputs/",
+            "    └── inputs/"
+        ]
+
+        # Display the structure
+        structure_text = "\n".join(lines)
+        ctk.CTkLabel(
+            self.folder_preview_container, text=structure_text,
+            font=ctk.CTkFont(family="Monaco", size=9),
+            anchor="w", justify="left",
+            text_color=("gray30", "gray70")
+        ).pack(anchor="w")
+
+    def fetch_file_sizes_for_table(self, table: str, start, end) -> dict:
+        """Fetch actual file sizes for a specific table from Blockchair."""
+        import requests
+        from bs4 import BeautifulSoup
+        import re
+        from datetime import timedelta
+
+        url = f"https://gz.blockchair.com/bitcoin/{table}/"
+        file_sizes = {}
+
         try:
-            start = self.parse_date(self.start_date.get())
-            end = self.parse_date(self.end_date.get())
+            response = requests.get(url, timeout=30)
+            response.raise_for_status()
+            soup = BeautifulSoup(response.text, 'html.parser')
+
+            # Parse directory listing
+            current_date = start
+            while current_date <= end:
+                date_str = current_date.strftime("%Y%m%d")
+                filename = f"blockchair_bitcoin_{table}_{date_str}.tsv.gz"
+
+                # Find the file in the listing
+                for link in soup.find_all('a', href=True):
+                    if filename in link['href']:
+                        # Get the parent row to find the size
+                        parent = link.parent
+                        text = parent.get_text()
+
+                        # Extract size (format: "123K" or "1.5M" or "789" bytes)
+                        size_match = re.search(r'(\d+(?:\.\d+)?)\s*([KMG]?)\s*$', text.strip())
+                        if size_match:
+                            size_value = float(size_match.group(1))
+                            size_unit = size_match.group(2)
+
+                            # Convert to bytes
+                            if size_unit == 'K':
+                                size_bytes = size_value * 1024
+                            elif size_unit == 'M':
+                                size_bytes = size_value * 1024 * 1024
+                            elif size_unit == 'G':
+                                size_bytes = size_value * 1024 * 1024 * 1024
+                            else:
+                                size_bytes = size_value
+
+                            file_sizes[date_str] = size_bytes
+                        break
+
+                current_date += timedelta(days=1)
+
+        except Exception as e:
+            print(f"Error fetching sizes for {table}: {e}")
+            raise
+
+        return file_sizes
+
+    def calculate_size_new(self):
+        """Calculate and display actual download size by fetching from Blockchair."""
+        try:
+            start = self.parse_date(self.saved_start_date)
+            end = self.parse_date(self.saved_end_date)
             tables = self.get_selected_tables()
 
             if start > end:
                 messagebox.showerror("Error", "Start date must be before end date")
                 return
 
-            # Calculate
-            downloader = BlockchairDownloader(self.output_dir.get() or "/tmp")
-            compressed_gb, uncompressed_gb = downloader.estimate_size(start, end, tables)
-
-            self.calculated_size_compressed = compressed_gb
-            self.calculated_size_uncompressed = uncompressed_gb
-
-            days = (end - start).days + 1
-
-            # Clear old result
+            # Clear old result and show loading
             for widget in self.size_result_frame.winfo_children():
                 widget.destroy()
 
-            # Display result
-            result_container = ctk.CTkFrame(self.size_result_frame, fg_color="transparent")
-            result_container.pack(expand=True, pady=30)
+            loading_container = ctk.CTkFrame(self.size_result_frame, fg_color="transparent")
+            loading_container.pack(expand=True, pady=30)
 
             ctk.CTkLabel(
-                result_container, text="💾 Estimated Download Size",
-                font=ctk.CTkFont(size=18, weight="bold")
+                loading_container, text="🔍 Fetching file sizes from Blockchair...",
+                font=ctk.CTkFont(size=16, weight="bold")
             ).pack(pady=(0, 15))
 
-            size_text = f"📦 Compressed (.gz): ~{compressed_gb:.1f} GB\n"
-            size_text += f"📂 Uncompressed (.tsv): ~{uncompressed_gb:.1f} GB\n\n"
+            self.calc_progress_var = ctk.DoubleVar()
+            self.calc_progress_bar = ctk.CTkProgressBar(
+                loading_container, variable=self.calc_progress_var, height=20, width=400
+            )
+            self.calc_progress_bar.pack(pady=(0, 10))
+            self.calc_progress_bar.set(0)
 
-            if self.remove_gz.get():
-                size_text += f"💿 Total disk space needed: ~{uncompressed_gb:.1f} GB"
-            else:
-                size_text += f"💿 Total disk space needed: ~{compressed_gb + uncompressed_gb:.1f} GB"
+            self.calc_status_label = ctk.CTkLabel(
+                loading_container, text="Preparing...",
+                font=ctk.CTkFont(size=13), text_color="gray"
+            )
+            self.calc_status_label.pack()
 
-            ctk.CTkLabel(
-                result_container, text=size_text,
-                font=ctk.CTkFont(size=14), justify="left"
-            ).pack()
+            # Run calculation in thread to keep UI responsive
+            import threading
+            def calculate_thread():
+                try:
+                    table_sizes = {}
+                    total_compressed = 0
 
-            # Enable start button
-            self.start_download_btn.configure(state="normal")
+                    for i, table in enumerate(tables):
+                        # Update UI
+                        self.root.after(0, lambda t=table: self.calc_status_label.configure(
+                            text=f"Fetching {t} file sizes..."
+                        ))
+
+                        file_sizes = self.fetch_file_sizes_for_table(table, start, end)
+                        table_total = sum(file_sizes.values())
+                        table_sizes[table] = table_total
+                        total_compressed += table_total
+
+                        # Update progress
+                        progress = (i + 1) / len(tables)
+                        self.root.after(0, lambda p=progress: self.calc_progress_var.set(p))
+
+                    # Estimate uncompressed size (TSV is ~2.5x larger than gz)
+                    total_uncompressed = total_compressed * 2.5
+
+                    # Convert to GB
+                    compressed_gb = total_compressed / (1024 ** 3)
+                    uncompressed_gb = total_uncompressed / (1024 ** 3)
+
+                    self.calculated_size_compressed = compressed_gb
+                    self.calculated_size_uncompressed = uncompressed_gb
+
+                    # Display results
+                    self.root.after(0, lambda: self.display_size_results(
+                        compressed_gb, uncompressed_gb, table_sizes
+                    ))
+
+                except Exception as e:
+                    self.root.after(0, lambda: messagebox.showerror("Error", f"Failed to fetch file sizes: {str(e)}"))
+                    self.root.after(0, self.show_calculate_view)
+
+            thread = threading.Thread(target=calculate_thread, daemon=True)
+            thread.start()
 
         except Exception as e:
             messagebox.showerror("Error", str(e))
+
+    def display_size_results(self, compressed_gb, uncompressed_gb, table_sizes):
+        """Display the calculation results with breakdown by table."""
+        # Clear loading UI
+        for widget in self.size_result_frame.winfo_children():
+            widget.destroy()
+
+        # Breakdown by table
+        breakdown_frame = ctk.CTkFrame(self.size_result_frame, fg_color="transparent")
+        breakdown_frame.pack(fill="x", pady=(0, 15))
+
+        for table, size_bytes in table_sizes.items():
+            size_gb = size_bytes / (1024 ** 3)
+
+            # Row container
+            row = ctk.CTkFrame(breakdown_frame, fg_color="transparent")
+            row.pack(fill="x", pady=3)
+
+            # Table name
+            ctk.CTkLabel(
+                row, text=f"{table}:",
+                font=ctk.CTkFont(size=12, weight="bold"),
+                anchor="w", width=120
+            ).pack(side="left")
+
+            # Compressed size
+            ctk.CTkLabel(
+                row, text=f"{size_gb:.2f} GB (compressed)",
+                font=ctk.CTkFont(size=12),
+                anchor="w", text_color=("gray30", "gray70")
+            ).pack(side="left")
+
+        # Separator
+        separator = ctk.CTkFrame(self.size_result_frame, height=2, fg_color=("gray70", "gray30"))
+        separator.pack(fill="x", pady=15)
+
+        # Total sizes
+        totals_frame = ctk.CTkFrame(self.size_result_frame, fg_color="transparent")
+        totals_frame.pack(fill="x")
+
+        # Total compressed
+        total_row1 = ctk.CTkFrame(totals_frame, fg_color="transparent")
+        total_row1.pack(fill="x", pady=3)
+
+        ctk.CTkLabel(
+            total_row1, text="📦 Total Compressed:",
+            font=ctk.CTkFont(size=13, weight="bold"),
+            anchor="w", width=180
+        ).pack(side="left")
+
+        ctk.CTkLabel(
+            total_row1, text=f"{compressed_gb:.2f} GB",
+            font=ctk.CTkFont(size=13, weight="bold"),
+            anchor="w"
+        ).pack(side="left")
+
+        # Total uncompressed (estimated)
+        total_row2 = ctk.CTkFrame(totals_frame, fg_color="transparent")
+        total_row2.pack(fill="x", pady=3)
+
+        ctk.CTkLabel(
+            total_row2, text="📂 Uncompressed (est.):",
+            font=ctk.CTkFont(size=13, weight="bold"),
+            anchor="w", width=180
+        ).pack(side="left")
+
+        ctk.CTkLabel(
+            total_row2, text=f"~{uncompressed_gb:.2f} GB",
+            font=ctk.CTkFont(size=13, weight="bold"),
+            anchor="w"
+        ).pack(side="left")
+
+        # Disk space needed
+        total_row3 = ctk.CTkFrame(totals_frame, fg_color="transparent")
+        total_row3.pack(fill="x", pady=(10, 3))
+
+        disk_space = uncompressed_gb if self.remove_gz.get() else compressed_gb + uncompressed_gb
+
+        ctk.CTkLabel(
+            total_row3, text="💿 Disk Space Needed:",
+            font=ctk.CTkFont(size=14, weight="bold"),
+            anchor="w", width=180,
+            text_color=("#2CC985", "#2FA572")
+        ).pack(side="left")
+
+        ctk.CTkLabel(
+            total_row3, text=f"~{disk_space:.2f} GB",
+            font=ctk.CTkFont(size=14, weight="bold"),
+            anchor="w",
+            text_color=("#2CC985", "#2FA572")
+        ).pack(side="left")
+
+        # Note about estimation
+        ctk.CTkLabel(
+            self.size_result_frame,
+            text="Note: Uncompressed size is estimated at ~2.5x the compressed size",
+            font=ctk.CTkFont(size=10),
+            text_color=("gray50", "gray60"),
+            anchor="w"
+        ).pack(fill="x", pady=(15, 0))
+
+        # Enable start button
+        self.start_download_btn.configure(state="normal")
 
     def check_for_incomplete_downloads(self):
         """Check for incomplete downloads and offer to resume."""
@@ -1017,8 +1281,10 @@ class DownloaderGUI:
 
                         if answer:
                             self.output_dir.set(output_dir)
-                            self.start_date.set(start_date)
-                            self.end_date.set(end_date)
+                            self.start_entry.delete(0, 'end')
+                            self.start_entry.insert(0, start_date)
+                            self.end_entry.delete(0, 'end')
+                            self.end_entry.insert(0, end_date)
 
                             # Set remove_gz option
                             self.remove_gz.set(remove_gz)
@@ -1040,20 +1306,35 @@ class DownloaderGUI:
 
     def set_preset(self, start: str, end: str):
         """Set date preset."""
-        self.start_date.set(start)
-        self.end_date.set(end)
+        self.start_entry.delete(0, 'end')
+        self.start_entry.insert(0, start)
+        self.end_entry.delete(0, 'end')
+        self.end_entry.insert(0, end)
 
     def set_preset_relative(self, days: int):
         """Set date preset relative to today (last N days)."""
         from datetime import datetime, timedelta
         end = datetime.now()
         start = end - timedelta(days=days - 1)  # -1 because we include today
-        self.start_date.set(start.strftime("%Y-%m-%d"))
-        self.end_date.set(end.strftime("%Y-%m-%d"))
+        self.start_entry.delete(0, 'end')
+        self.start_entry.insert(0, start.strftime("%Y-%m-%d"))
+        self.end_entry.delete(0, 'end')
+        self.end_entry.insert(0, end.strftime("%Y-%m-%d"))
 
     def get_selected_tables(self) -> List[str]:
-        """Get all tables (always downloads all 3)."""
-        return ["blocks", "transactions", "outputs"]
+        """Get all tables (always downloads all 4)."""
+        return ["blocks", "transactions", "outputs", "inputs"]
+
+    def sanitize_folder_name(self, name: str) -> str:
+        """Sanitize folder name for cross-platform compatibility."""
+        # Replace any characters that might be problematic on Windows or Mac
+        # Keep only alphanumeric, dash, underscore
+        import re
+        # Remove or replace invalid characters
+        sanitized = re.sub(r'[<>:"/\\|?*]', '_', name)
+        # Remove trailing dots and spaces (Windows doesn't like them)
+        sanitized = sanitized.rstrip('. ')
+        return sanitized
 
     def parse_date(self, date_str: str) -> datetime:
         """Parse date string."""
@@ -1085,13 +1366,47 @@ class DownloaderGUI:
             return
 
         try:
-            start = self.parse_date(self.start_date.get())
-            end = self.parse_date(self.end_date.get())
+            start = self.parse_date(self.saved_start_date)
+            end = self.parse_date(self.saved_end_date)
             tables = self.get_selected_tables()
 
-            # Create output directory
-            output_path = Path(self.output_dir.get())
+            # Create output directory with timestamped subfolder
+            base_output_path = Path(self.output_dir.get())
+            subfolder_name = f"bitcoin_blockchain_{self.saved_start_date}_to_{self.saved_end_date}"
+            subfolder_name = self.sanitize_folder_name(subfolder_name)
+            output_path = base_output_path / subfolder_name
+
+            # Check if directory already exists and has content
+            if output_path.exists():
+                # Check if directory has any files
+                has_files = any(output_path.rglob('*'))
+                if has_files:
+                    # Ask user if they want to continue/resume or create new folder
+                    answer = messagebox.askyesnocancel(
+                        "Directory Exists",
+                        f"The directory already exists:\n{output_path}\n\n"
+                        f"Yes: Resume/continue download\n"
+                        f"No: Create new folder with timestamp\n"
+                        f"Cancel: Abort download"
+                    )
+
+                    if answer is None:  # Cancel
+                        self.is_downloading = False
+                        return
+                    elif answer is False:  # No - create new folder
+                        # Add timestamp to make it unique
+                        from datetime import datetime
+                        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                        subfolder_name = f"bitcoin_blockchain_{self.saved_start_date}_to_{self.saved_end_date}_{timestamp}"
+                        subfolder_name = self.sanitize_folder_name(subfolder_name)
+                        output_path = base_output_path / subfolder_name
+                    # If Yes, continue with existing folder (resume)
+
             output_path.mkdir(parents=True, exist_ok=True)
+            self.log(f"Output directory: {output_path}")
+
+            # Store output path for download worker
+            self.actual_output_path = str(output_path)
 
             # Start download thread
             self.is_downloading = True
@@ -1144,30 +1459,58 @@ class DownloaderGUI:
     def download_worker(self, start: datetime, end: datetime, tables: List[str]):
         """Worker thread for downloading."""
         try:
-            self.downloader = BlockchairDownloader(self.output_dir.get())
+            # Use the actual output path (with subfolder)
+            self.downloader = BlockchairDownloader(self.actual_output_path)
+
+            # Track total downloaded MB
+            self.total_downloaded_mb = 0
+            self.download_start_time = None
 
             def progress_callback(current, total):
                 pct = (current / total) * 100
-                self.progress_var.set(pct)
-                self.progress_label.config(text=f"Overall: {current}/{total} files ({pct:.1f}%)")
+                self.root.after(0, lambda: self.progress_var.set(pct / 100))
+                self.root.after(0, lambda c=current, t=total, p=pct:
+                    self.progress_label.configure(
+                        text=f"Overall: {c}/{t} files ({p:.1f}%) • {self.total_downloaded_mb:.1f} MB"
+                    ))
 
             def file_progress_callback(pct, downloaded, total, current_file, total_files):
-                self.file_progress_var.set(pct)
+                import time
+
+                # Track download speed
+                if self.download_start_time is None:
+                    self.download_start_time = time.time()
+
                 mb = downloaded / 1024 / 1024
                 total_mb = total / 1024 / 1024
-                self.file_progress_label.config(
-                    text=f"Current file: {pct:.1f}% ({mb:.1f}/{total_mb:.1f} MB) • File {current_file}/{total_files}"
-                )
+
+                # Calculate speed
+                elapsed = time.time() - self.download_start_time
+                if elapsed > 0:
+                    speed_mbps = self.total_downloaded_mb / elapsed
+                    self.root.after(0, lambda s=speed_mbps:
+                        self.speed_label.configure(text=f"{s:.2f} MB/s"))
+
+                # Update file progress
+                self.root.after(0, lambda: self.file_progress_var.set(pct / 100))
+                self.root.after(0, lambda p=pct, m=mb, tm=total_mb, cf=current_file, tf=total_files:
+                    self.file_progress_label.configure(
+                        text=f"{p:.0f}% • {m:.1f}/{tm:.1f} MB • File {cf}/{tf}"
+                    ))
+
+                # Update total downloaded (when file completes)
+                if pct >= 100:
+                    self.total_downloaded_mb += total_mb
 
             def log_callback(message):
-                self.log(message)
+                self.root.after(0, lambda msg=message: self.log(msg))
 
             self.log("="*60)
             self.log("BITCOIN BLOCKCHAIN DATA DOWNLOAD")
             self.log("="*60)
             self.log(f"Period: {start.date()} to {end.date()}")
             self.log(f"Tables: {', '.join(tables)}")
-            self.log(f"Output: {self.output_dir.get()}")
+            self.log(f"Output: {self.actual_output_path}")
             self.log(f"Remove .gz: {self.remove_gz.get()}")
             self.log("="*60)
             self.log("")
@@ -1184,7 +1527,29 @@ class DownloaderGUI:
                 file_progress_callback=file_progress_callback
             )
 
-            if not self.downloader.cancelled:
+            if self.downloader.cancelled:
+                # Download was cancelled
+                self.log("")
+                self.log("="*60)
+                self.log("DOWNLOAD CANCELLED")
+                self.log("="*60)
+                self.log(f"✓ Successful: {stats['successful']}")
+                self.log(f"⏭ Skipped: {stats['skipped']}")
+                self.log(f"📦 Downloaded: {stats['downloaded_mb']:.1f} MB")
+                self.log("="*60)
+                self.log("")
+                self.log("You can resume this download later.")
+                self.log("Already downloaded files are saved and won't be re-downloaded.")
+
+                messagebox.showinfo(
+                    "Download Cancelled",
+                    f"Download was cancelled.\n\n"
+                    f"✓ Downloaded: {stats['successful']} files ({stats['downloaded_mb']:.1f} MB)\n"
+                    f"⏭ Skipped: {stats['skipped']} files\n\n"
+                    f"You can resume this download later.\n"
+                    f"Progress has been saved."
+                )
+            else:
                 self.log("")
                 self.log("="*60)
                 self.log("DOWNLOAD COMPLETE")
@@ -1196,18 +1561,46 @@ class DownloaderGUI:
                 self.log(f"📦 Downloaded: {stats['downloaded_mb']:.1f} MB")
                 self.log("="*60)
                 self.log("")
-                self.log(f"Data saved to: {self.output_dir.get()}/extracted")
+                self.log(f"Data saved to: {self.actual_output_path}")
                 self.log("")
                 self.log("Next steps:")
                 self.log("1. Open Jupyter: ./start_project.sh")
                 self.log("2. Open: notebooks/01_data_exploration.ipynb")
                 self.log("3. Set: config = DataConfig(source='local')")
 
-                messagebox.showinfo("Success",
-                                  f"Download complete!\n\n"
-                                  f"Successful: {stats['successful']}\n"
-                                  f"Skipped: {stats['skipped']}\n"
-                                  f"Failed: {stats['failed']}")
+                # Show appropriate message based on results
+                if stats['successful'] == 0 and stats['skipped'] > 0:
+                    # All files were skipped (404 errors)
+                    messagebox.showerror(
+                        "Download Failed",
+                        f"No files were downloaded!\n\n"
+                        f"All {stats['skipped']} files returned 404 (Not Found).\n\n"
+                        f"Possible reasons:\n"
+                        f"• The selected dates don't have data yet\n"
+                        f"• Blockchair hasn't published data for these dates\n"
+                        f"• The date range is in the future\n\n"
+                        f"Try selecting dates from the past (e.g., last month)."
+                    )
+                elif stats['failed'] > 0 or stats['skipped'] > 0:
+                    # Some files failed or were skipped
+                    messagebox.showwarning(
+                        "Download Completed with Issues",
+                        f"Download finished with some problems:\n\n"
+                        f"✓ Successful: {stats['successful']}\n"
+                        f"⏭ Skipped (404): {stats['skipped']}\n"
+                        f"✗ Failed: {stats['failed']}\n\n"
+                        f"Downloaded: {stats['downloaded_mb']:.1f} MB\n\n"
+                        f"Check the activity log for details."
+                    )
+                else:
+                    # All successful
+                    messagebox.showinfo(
+                        "Download Complete",
+                        f"All files downloaded successfully!\n\n"
+                        f"✓ {stats['successful']} files\n"
+                        f"📦 {stats['downloaded_mb']:.1f} MB\n\n"
+                        f"Data saved to:\n{self.actual_output_path}"
+                    )
 
         except Exception as e:
             self.log(f"\n❌ ERROR: {str(e)}")
