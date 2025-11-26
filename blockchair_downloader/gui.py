@@ -474,20 +474,20 @@ class DownloaderGUI:
 
         view = ctk.CTkFrame(self.content_frame, fg_color="transparent")
         view.grid(row=0, column=0, sticky="nsew")
-        view.grid_columnconfigure((0, 1), weight=1)
-        view.grid_rowconfigure(3, weight=1)
+        view.grid_columnconfigure(0, weight=1)
+        view.grid_rowconfigure(0, weight=1)
 
-        # Left Column
-        left_col = ctk.CTkFrame(view, corner_radius=10)
-        left_col.grid(row=0, column=0, rowspan=4, sticky="nsew", padx=(0, 10))
+        # Main Column (centered, max width)
+        main_col = ctk.CTkFrame(view, corner_radius=10)
+        main_col.grid(row=0, column=0, sticky="nsew", padx=150)
 
         # Output Directory
         ctk.CTkLabel(
-            left_col, text="📁 Output Directory",
+            main_col, text="📁 Output Directory",
             font=ctk.CTkFont(size=16, weight="bold")
         ).pack(anchor="w", padx=20, pady=(20, 10))
 
-        dir_container = ctk.CTkFrame(left_col, fg_color="transparent")
+        dir_container = ctk.CTkFrame(main_col, fg_color="transparent")
         dir_container.pack(fill="x", padx=20, pady=(0, 20))
         dir_container.grid_columnconfigure(0, weight=1)
 
@@ -502,126 +502,88 @@ class DownloaderGUI:
 
         # Date Range
         ctk.CTkLabel(
-            left_col, text="📅 Date Range",
+            main_col, text="📅 Date Range",
             font=ctk.CTkFont(size=16, weight="bold")
         ).pack(anchor="w", padx=20, pady=(10, 10))
 
-        date_container = ctk.CTkFrame(left_col, fg_color="transparent")
+        date_container = ctk.CTkFrame(main_col, fg_color="transparent")
         date_container.pack(fill="x", padx=20, pady=(0, 10))
 
         ctk.CTkLabel(date_container, text="Start Date:").grid(row=0, column=0, sticky="w", pady=5)
-        start_entry = ctk.CTkEntry(date_container, textvariable=self.start_date, height=35, width=150,
-                                   placeholder_text="YYYY-MM-DD")
+        start_entry = ctk.CTkEntry(
+            date_container, textvariable=self.start_date, height=35, width=150,
+            placeholder_text="YYYY-MM-DD",
+            placeholder_text_color=("gray60", "gray40")
+        )
         start_entry.grid(row=0, column=1, sticky="w", padx=10, pady=5)
 
         ctk.CTkLabel(date_container, text="End Date:").grid(row=1, column=0, sticky="w", pady=5)
-        end_entry = ctk.CTkEntry(date_container, textvariable=self.end_date, height=35, width=150,
-                                placeholder_text="YYYY-MM-DD")
+        end_entry = ctk.CTkEntry(
+            date_container, textvariable=self.end_date, height=35, width=150,
+            placeholder_text="YYYY-MM-DD",
+            placeholder_text_color=("gray60", "gray40")
+        )
         end_entry.grid(row=1, column=1, sticky="w", padx=10, pady=5)
 
         # Presets
         ctk.CTkLabel(
-            left_col, text="Quick Presets:",
+            main_col, text="Quick Presets:",
             font=ctk.CTkFont(size=13, weight="bold")
         ).pack(anchor="w", padx=20, pady=(10, 5))
 
-        # First row of presets
-        preset_row1 = ctk.CTkFrame(left_col, fg_color="transparent")
+        # First row of presets (short periods from 2025)
+        preset_row1 = ctk.CTkFrame(main_col, fg_color="transparent")
         preset_row1.pack(fill="x", padx=20, pady=(0, 5))
 
         ctk.CTkButton(
-            preset_row1, text="1 Week", height=32,
-            command=lambda: self.set_preset_relative(days=7)
+            preset_row1, text="1 Week (2025)", height=32,
+            command=lambda: self.set_preset("2025-01-01", "2025-01-07")
         ).pack(side="left", padx=(0, 5), expand=True, fill="x")
 
         ctk.CTkButton(
-            preset_row1, text="1 Month", height=32,
-            command=lambda: self.set_preset_relative(days=30)
+            preset_row1, text="1 Month (2025)", height=32,
+            command=lambda: self.set_preset("2025-01-01", "2025-01-31")
         ).pack(side="left", padx=5, expand=True, fill="x")
 
         ctk.CTkButton(
-            preset_row1, text="3 Months", height=32,
-            command=lambda: self.set_preset_relative(days=90)
+            preset_row1, text="Q1 2025", height=32,
+            command=lambda: self.set_preset("2025-01-01", "2025-03-31")
         ).pack(side="left", padx=(5, 0), expand=True, fill="x")
 
-        # Second row of presets
-        preset_row2 = ctk.CTkFrame(left_col, fg_color="transparent")
+        # Second row of presets (full years)
+        preset_row2 = ctk.CTkFrame(main_col, fg_color="transparent")
         preset_row2.pack(fill="x", padx=20, pady=(0, 20))
-
-        ctk.CTkButton(
-            preset_row2, text="Q1 2021", height=32,
-            command=lambda: self.set_preset("2021-01-01", "2021-03-31")
-        ).pack(side="left", padx=(0, 5), expand=True, fill="x")
 
         ctk.CTkButton(
             preset_row2, text="Year 2021", height=32,
             command=lambda: self.set_preset("2021-01-01", "2021-12-31")
-        ).pack(side="left", padx=5, expand=True, fill="x")
+        ).pack(side="left", padx=(0, 5), expand=True, fill="x")
 
         ctk.CTkButton(
             preset_row2, text="Year 2024", height=32,
             command=lambda: self.set_preset("2024-01-01", "2024-12-31")
+        ).pack(side="left", padx=5, expand=True, fill="x")
+
+        ctk.CTkButton(
+            preset_row2, text="Year 2025", height=32,
+            command=lambda: self.set_preset("2025-01-01", "2025-12-31")
         ).pack(side="left", padx=(5, 0), expand=True, fill="x")
 
         # Options
         ctk.CTkLabel(
-            left_col, text="⚙️ Options",
+            main_col, text="⚙️ Options",
             font=ctk.CTkFont(size=16, weight="bold")
         ).pack(anchor="w", padx=20, pady=(10, 10))
 
         ctk.CTkCheckBox(
-            left_col,
+            main_col,
             text="Remove .gz files after extraction (saves ~70% disk space)",
             variable=self.remove_gz
         ).pack(anchor="w", padx=20, pady=(0, 20))
 
-        # Right Column - Download Info
-        right_col = ctk.CTkFrame(view, corner_radius=10)
-        right_col.grid(row=0, column=1, rowspan=4, sticky="nsew", padx=(10, 0))
-
-        ctk.CTkLabel(
-            right_col, text="📊 Download Information",
-            font=ctk.CTkFont(size=16, weight="bold")
-        ).pack(anchor="w", padx=20, pady=(20, 15))
-
-        # Info text
-        info_text = (
-            "This tool will download all 3 tables from Blockchair:\n\n"
-            "• Blocks (~1 MB/day)\n"
-            "  Block headers and metadata\n\n"
-            "• Transactions (~150 MB/day)\n"
-            "  Transaction inputs and outputs\n\n"
-            "• Outputs (~250 MB/day)\n"
-            "  UTXO details and addresses\n\n"
-            "Total: ~400 MB per day (compressed)"
-        )
-
-        info_frame = ctk.CTkFrame(right_col, corner_radius=8, fg_color=("#E8F4FD", "#1a3a4a"))
-        info_frame.pack(fill="both", expand=True, padx=20, pady=(0, 15))
-
-        ctk.CTkLabel(
-            info_frame, text=info_text,
-            font=ctk.CTkFont(size=13), justify="left",
-            anchor="w"
-        ).pack(anchor="w", padx=20, pady=20)
-
-        # Data source info
-        source_frame = ctk.CTkFrame(right_col, corner_radius=8, fg_color=("#D0D0D0", "#333333"))
-        source_frame.pack(fill="x", padx=20, pady=(0, 20))
-
-        ctk.CTkLabel(
-            source_frame, text="📡 Data Source",
-            font=ctk.CTkFont(size=13, weight="bold")
-        ).pack(anchor="w", padx=15, pady=(15, 5))
-
-        ctk.CTkLabel(
-            source_frame, text="gz.blockchair.com/bitcoin/\nTSV format, gzip compressed",
-            font=ctk.CTkFont(size=11), text_color="gray", justify="left"
-        ).pack(anchor="w", padx=15, pady=(0, 15))
-
         # Bottom Navigation
         nav_frame = ctk.CTkFrame(view, fg_color="transparent")
-        nav_frame.grid(row=4, column=0, columnspan=2, sticky="ew", pady=(15, 0))
+        nav_frame.grid(row=1, column=0, sticky="ew", pady=(15, 0))
         nav_frame.grid_columnconfigure(0, weight=1)
 
         ctk.CTkButton(
