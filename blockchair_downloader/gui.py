@@ -336,7 +336,7 @@ class DownloaderGUI:
     def __init__(self):
         self.root = ctk.CTk()
         self.root.title("Bitcoin Blockchain Data Downloader")
-        self.root.geometry("900x700")
+        self.root.geometry("900x750")
         self.root.resizable(False, False)
 
         # Center window
