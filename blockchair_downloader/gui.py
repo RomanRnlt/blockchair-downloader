@@ -700,11 +700,9 @@ class DownloaderGUI:
             font=ctk.CTkFont(size=16, weight="bold")
         ).pack(anchor="w", padx=20, pady=(15, 10))
 
-        self.summary_text = ctk.CTkLabel(
-            summary_frame, text="", font=ctk.CTkFont(size=13),
-            justify="left", anchor="w"
-        )
-        self.summary_text.pack(anchor="w", padx=20, pady=(0, 15))
+        # Container for grid layout
+        self.summary_container = ctk.CTkFrame(summary_frame, fg_color="transparent")
+        self.summary_container.pack(fill="x", padx=20, pady=(0, 15))
 
         # Size Result
         self.size_result_frame = ctk.CTkFrame(size_area, corner_radius=8, fg_color=("#E8F4FD", "#1a3a4a"))
@@ -888,14 +886,47 @@ class DownloaderGUI:
             days = (end - start).days + 1
             tables = self.get_selected_tables()
 
-            summary = f"📁 Directory: {self.output_dir.get() or 'Not set'}\n"
-            summary += f"📅 Period: {self.start_date.get()} to {self.end_date.get()} ({days} days)\n"
-            summary += f"📊 Tables: {', '.join(tables) if tables else 'None selected'}\n"
-            summary += f"⚙️  Remove .gz: {'Yes' if self.remove_gz.get() else 'No'}"
+            # Clear old summary
+            for widget in self.summary_container.winfo_children():
+                widget.destroy()
 
-            self.summary_text.configure(text=summary)
+            # Create grid layout for summary
+            items = [
+                ("📁", "Directory:", self.output_dir.get() or 'Not set'),
+                ("📅", "Period:", f"{self.start_date.get()} to {self.end_date.get()} ({days} days)"),
+                ("📊", "Tables:", f"{', '.join(tables) if tables else 'None selected'}"),
+                ("⚙️", "Remove .gz:", 'Yes' if self.remove_gz.get() else 'No')
+            ]
+
+            for i, (icon, label, value) in enumerate(items):
+                # Icon
+                ctk.CTkLabel(
+                    self.summary_container, text=icon,
+                    font=ctk.CTkFont(size=14)
+                ).grid(row=i, column=0, sticky="w", padx=(15, 5), pady=8)
+
+                # Label
+                ctk.CTkLabel(
+                    self.summary_container, text=label,
+                    font=ctk.CTkFont(size=13, weight="bold"),
+                    anchor="w"
+                ).grid(row=i, column=1, sticky="w", padx=5, pady=8)
+
+                # Value
+                ctk.CTkLabel(
+                    self.summary_container, text=value,
+                    font=ctk.CTkFont(size=13),
+                    anchor="w", text_color=("gray30", "gray70")
+                ).grid(row=i, column=2, sticky="w", padx=(5, 15), pady=8)
+
+            self.summary_container.grid_columnconfigure(2, weight=1)
+
         except:
-            self.summary_text.configure(text="Invalid configuration")
+            # Fallback for errors
+            ctk.CTkLabel(
+                self.summary_container, text="Invalid configuration",
+                font=ctk.CTkFont(size=13), text_color="red"
+            ).grid(row=0, column=0, padx=15, pady=15)
 
     def calculate_size_new(self):
         """Calculate and display download size."""
