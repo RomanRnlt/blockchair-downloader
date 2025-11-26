@@ -331,12 +331,13 @@ class BlockchairDownloader:
 
 
 class DownloaderGUI:
-    """Modern GUI for Bitcoin data downloader with pause/resume support."""
+    """Modern GUI for Bitcoin data downloader with 3-view wizard system."""
 
     def __init__(self):
         self.root = ctk.CTk()
         self.root.title("Bitcoin Blockchain Data Downloader")
-        self.root.geometry("1000x800")
+        self.root.geometry("1200x750")
+        self.root.resizable(False, False)
 
         # Center window
         self.root.update_idletasks()
@@ -363,19 +364,26 @@ class DownloaderGUI:
         self.download_thread = None
         self.log_queue = queue.Queue()
 
+        # View management
+        self.current_view = None
+        self.current_step = 1
+        self.calculated_size_compressed = 0
+        self.calculated_size_uncompressed = 0
+
         self.setup_ui()
         self.process_log_queue()
         self.check_for_incomplete_downloads()
 
     def setup_ui(self):
-        """Setup modern UI components."""
+        """Setup modern UI with 3-view wizard system."""
         # Configure grid
         self.root.grid_columnconfigure(0, weight=1)
-        self.root.grid_rowconfigure(1, weight=1)
+        self.root.grid_rowconfigure(1, weight=0)
+        self.root.grid_rowconfigure(2, weight=1)
 
         # Header
         header_frame = ctk.CTkFrame(self.root, corner_radius=0, fg_color="transparent")
-        header_frame.grid(row=0, column=0, sticky="ew", padx=20, pady=(20, 10))
+        header_frame.grid(row=0, column=0, sticky="ew", padx=30, pady=(20, 10))
 
         title = ctk.CTkLabel(
             header_frame,
@@ -392,173 +400,525 @@ class DownloaderGUI:
         )
         subtitle.pack()
 
-        # Main scrollable frame
-        main_frame = ctk.CTkScrollableFrame(self.root, corner_radius=10)
-        main_frame.grid(row=1, column=0, sticky="nsew", padx=20, pady=(0, 20))
-        main_frame.grid_columnconfigure(0, weight=1)
+        # Progress Stepper
+        self.stepper_frame = ctk.CTkFrame(self.root, corner_radius=10, fg_color=("#E0E0E0", "#2B2B2B"))
+        self.stepper_frame.grid(row=1, column=0, sticky="ew", padx=30, pady=(0, 15))
+        self.stepper_frame.grid_columnconfigure((0, 1, 2), weight=1)
 
-        # Output Directory Section
-        dir_frame = ctk.CTkFrame(main_frame, corner_radius=10)
-        dir_frame.grid(row=0, column=0, sticky="ew", pady=(0, 15))
-        dir_frame.grid_columnconfigure(1, weight=1)
-
-        ctk.CTkLabel(dir_frame, text="📁 Output Directory", font=ctk.CTkFont(size=14, weight="bold")).grid(
-            row=0, column=0, columnspan=3, sticky="w", padx=15, pady=(15, 10)
+        self.step1_btn = ctk.CTkButton(
+            self.stepper_frame, text="1. Configure", height=40,
+            fg_color=("#1f538d", "#3b8ed0"), hover_color=("#1f538d", "#3b8ed0"),
+            font=ctk.CTkFont(size=13, weight="bold")
         )
+        self.step1_btn.grid(row=0, column=0, padx=10, pady=10, sticky="ew")
 
-        self.dir_entry = ctk.CTkEntry(dir_frame, textvariable=self.output_dir, height=35)
-        self.dir_entry.grid(row=1, column=0, sticky="ew", padx=(15, 10), pady=(0, 15))
+        self.step2_btn = ctk.CTkButton(
+            self.stepper_frame, text="2. Calculate Size", height=40,
+            fg_color=("#505050", "#404040"), hover_color=("#505050", "#404040"),
+            font=ctk.CTkFont(size=13), state="disabled"
+        )
+        self.step2_btn.grid(row=0, column=1, padx=10, pady=10, sticky="ew")
+
+        self.step3_btn = ctk.CTkButton(
+            self.stepper_frame, text="3. Download", height=40,
+            fg_color=("#505050", "#404040"), hover_color=("#505050", "#404040"),
+            font=ctk.CTkFont(size=13), state="disabled"
+        )
+        self.step3_btn.grid(row=0, column=2, padx=10, pady=10, sticky="ew")
+
+        # Main content frame (will hold different views)
+        self.content_frame = ctk.CTkFrame(self.root, corner_radius=10, fg_color="transparent")
+        self.content_frame.grid(row=2, column=0, sticky="nsew", padx=30, pady=(0, 20))
+        self.content_frame.grid_columnconfigure(0, weight=1)
+        self.content_frame.grid_rowconfigure(0, weight=1)
+
+        # Show first view
+        self.show_config_view()
+
+    def clear_content(self):
+        """Clear current content view."""
+        for widget in self.content_frame.winfo_children():
+            widget.destroy()
+
+    def update_stepper(self, step: int):
+        """Update stepper UI to highlight current step."""
+        self.current_step = step
+
+        # Reset all steps
+        for btn in [self.step1_btn, self.step2_btn, self.step3_btn]:
+            btn.configure(
+                fg_color=("#505050", "#404040"),
+                hover_color=("#505050", "#404040"),
+                font=ctk.CTkFont(size=13)
+            )
+
+        # Highlight current step
+        if step == 1:
+            self.step1_btn.configure(
+                fg_color=("#1f538d", "#3b8ed0"),
+                hover_color=("#1f538d", "#3b8ed0"),
+                font=ctk.CTkFont(size=13, weight="bold")
+            )
+        elif step == 2:
+            self.step2_btn.configure(
+                fg_color=("#1f538d", "#3b8ed0"),
+                hover_color=("#1f538d", "#3b8ed0"),
+                font=ctk.CTkFont(size=13, weight="bold")
+            )
+        elif step == 3:
+            self.step3_btn.configure(
+                fg_color=("#1f538d", "#3b8ed0"),
+                hover_color=("#1f538d", "#3b8ed0"),
+                font=ctk.CTkFont(size=13, weight="bold")
+            )
+
+    def show_config_view(self):
+        """Show View 1: Configuration."""
+        self.clear_content()
+        self.update_stepper(1)
+
+        view = ctk.CTkFrame(self.content_frame, fg_color="transparent")
+        view.grid(row=0, column=0, sticky="nsew")
+        view.grid_columnconfigure((0, 1), weight=1)
+        view.grid_rowconfigure(3, weight=1)
+
+        # Left Column
+        left_col = ctk.CTkFrame(view, corner_radius=10)
+        left_col.grid(row=0, column=0, rowspan=4, sticky="nsew", padx=(0, 10))
+
+        # Output Directory
+        ctk.CTkLabel(
+            left_col, text="📁 Output Directory",
+            font=ctk.CTkFont(size=16, weight="bold")
+        ).pack(anchor="w", padx=20, pady=(20, 10))
+
+        dir_container = ctk.CTkFrame(left_col, fg_color="transparent")
+        dir_container.pack(fill="x", padx=20, pady=(0, 20))
+        dir_container.grid_columnconfigure(0, weight=1)
+
+        self.dir_entry = ctk.CTkEntry(dir_container, textvariable=self.output_dir, height=38)
+        self.dir_entry.grid(row=0, column=0, sticky="ew", padx=(0, 10))
 
         ctk.CTkButton(
-            dir_frame, text="Browse", command=self.browse_directory,
-            width=100, height=35
-        ).grid(row=1, column=1, padx=(0, 15), pady=(0, 15))
+            dir_container, text="Browse",
+            command=self.browse_directory,
+            width=100, height=38
+        ).grid(row=0, column=1)
 
-        # Date Range Section
-        date_frame = ctk.CTkFrame(main_frame, corner_radius=10)
-        date_frame.grid(row=1, column=0, sticky="ew", pady=(0, 15))
-        date_frame.grid_columnconfigure((1, 2), weight=1)
+        # Date Range
+        ctk.CTkLabel(
+            left_col, text="📅 Date Range",
+            font=ctk.CTkFont(size=16, weight="bold")
+        ).pack(anchor="w", padx=20, pady=(10, 10))
 
-        ctk.CTkLabel(date_frame, text="📅 Date Range", font=ctk.CTkFont(size=14, weight="bold")).grid(
-            row=0, column=0, columnspan=3, sticky="w", padx=15, pady=(15, 10)
+        date_container = ctk.CTkFrame(left_col, fg_color="transparent")
+        date_container.pack(fill="x", padx=20, pady=(0, 10))
+
+        ctk.CTkLabel(date_container, text="Start Date:").grid(row=0, column=0, sticky="w", pady=5)
+        ctk.CTkEntry(date_container, textvariable=self.start_date, height=35, width=150).grid(
+            row=0, column=1, sticky="w", padx=10, pady=5
         )
 
-        ctk.CTkLabel(date_frame, text="Start Date:").grid(row=1, column=0, sticky="w", padx=15, pady=5)
-        ctk.CTkEntry(date_frame, textvariable=self.start_date, height=35, width=150).grid(
+        ctk.CTkLabel(date_container, text="End Date:").grid(row=1, column=0, sticky="w", pady=5)
+        ctk.CTkEntry(date_container, textvariable=self.end_date, height=35, width=150).grid(
             row=1, column=1, sticky="w", padx=10, pady=5
         )
 
-        ctk.CTkLabel(date_frame, text="End Date:").grid(row=2, column=0, sticky="w", padx=15, pady=5)
-        ctk.CTkEntry(date_frame, textvariable=self.end_date, height=35, width=150).grid(
-            row=2, column=1, sticky="w", padx=10, pady=5
-        )
+        # Presets
+        ctk.CTkLabel(
+            left_col, text="Quick Presets:",
+            font=ctk.CTkFont(size=13, weight="bold")
+        ).pack(anchor="w", padx=20, pady=(10, 5))
 
-        # Quick Presets
-        preset_label = ctk.CTkLabel(date_frame, text="Quick Presets:", font=ctk.CTkFont(size=12, weight="bold"))
-        preset_label.grid(row=1, column=2, sticky="w", padx=15)
-
-        preset_buttons = ctk.CTkFrame(date_frame, fg_color="transparent")
-        preset_buttons.grid(row=2, column=2, sticky="w", padx=15, pady=(0, 15))
+        preset_container = ctk.CTkFrame(left_col, fg_color="transparent")
+        preset_container.pack(fill="x", padx=20, pady=(0, 20))
 
         ctk.CTkButton(
-            preset_buttons, text="Year 2021", width=100, height=28,
+            preset_container, text="Year 2021", height=32,
             command=lambda: self.set_preset("2021-01-01", "2021-12-31")
-        ).pack(side="left", padx=5)
+        ).pack(side="left", padx=(0, 5), expand=True, fill="x")
 
         ctk.CTkButton(
-            preset_buttons, text="Q1 2021", width=100, height=28,
+            preset_container, text="Q1 2021", height=32,
             command=lambda: self.set_preset("2021-01-01", "2021-03-31")
-        ).pack(side="left", padx=5)
+        ).pack(side="left", padx=5, expand=True, fill="x")
 
         ctk.CTkButton(
-            preset_buttons, text="Jan 2021", width=100, height=28,
+            preset_container, text="Jan 2021", height=32,
             command=lambda: self.set_preset("2021-01-01", "2021-01-31")
-        ).pack(side="left", padx=5)
-
-        # Tables Selection
-        tables_frame = ctk.CTkFrame(main_frame, corner_radius=10)
-        tables_frame.grid(row=2, column=0, sticky="ew", pady=(0, 15))
-
-        ctk.CTkLabel(tables_frame, text="📊 Tables to Download", font=ctk.CTkFont(size=14, weight="bold")).pack(
-            anchor="w", padx=15, pady=(15, 10)
-        )
-
-        ctk.CTkCheckBox(tables_frame, text="Blocks (~1 MB/day)", variable=self.table_blocks).pack(
-            anchor="w", padx=15, pady=5
-        )
-        ctk.CTkCheckBox(tables_frame, text="Transactions (~150 MB/day)", variable=self.table_transactions).pack(
-            anchor="w", padx=15, pady=5
-        )
-        ctk.CTkCheckBox(tables_frame, text="Outputs (~250 MB/day)", variable=self.table_outputs).pack(
-            anchor="w", padx=15, pady=(5, 15)
-        )
+        ).pack(side="left", padx=(5, 0), expand=True, fill="x")
 
         # Options
-        options_frame = ctk.CTkFrame(main_frame, corner_radius=10)
-        options_frame.grid(row=3, column=0, sticky="ew", pady=(0, 15))
-
-        ctk.CTkLabel(options_frame, text="⚙️ Options", font=ctk.CTkFont(size=14, weight="bold")).pack(
-            anchor="w", padx=15, pady=(15, 10)
-        )
+        ctk.CTkLabel(
+            left_col, text="⚙️ Options",
+            font=ctk.CTkFont(size=16, weight="bold")
+        ).pack(anchor="w", padx=20, pady=(10, 10))
 
         ctk.CTkCheckBox(
-            options_frame,
+            left_col,
             text="Remove .gz files after extraction (saves ~70% disk space)",
             variable=self.remove_gz
-        ).pack(anchor="w", padx=15, pady=(5, 15))
+        ).pack(anchor="w", padx=20, pady=(0, 20))
 
-        # Size Estimate
-        size_frame = ctk.CTkFrame(main_frame, corner_radius=10)
-        size_frame.grid(row=4, column=0, sticky="ew", pady=(0, 15))
+        # Right Column - Tables
+        right_col = ctk.CTkFrame(view, corner_radius=10)
+        right_col.grid(row=0, column=1, rowspan=4, sticky="nsew", padx=(10, 0))
 
-        self.size_label = ctk.CTkLabel(
-            size_frame, text="", font=ctk.CTkFont(size=13, weight="bold"),
-            text_color=("#1f538d", "#3b8ed0")
-        )
-        self.size_label.pack(pady=15)
+        ctk.CTkLabel(
+            right_col, text="📊 Tables to Download",
+            font=ctk.CTkFont(size=16, weight="bold")
+        ).pack(anchor="w", padx=20, pady=(20, 15))
+
+        # Blocks Card
+        blocks_card = ctk.CTkFrame(right_col, corner_radius=8, fg_color=("#D0D0D0", "#333333"))
+        blocks_card.pack(fill="x", padx=20, pady=(0, 10))
+
+        ctk.CTkCheckBox(
+            blocks_card, text="Blocks",
+            variable=self.table_blocks,
+            font=ctk.CTkFont(size=14, weight="bold")
+        ).pack(anchor="w", padx=15, pady=(15, 5))
+
+        ctk.CTkLabel(
+            blocks_card, text="~1 MB per day\nBlock headers and metadata",
+            font=ctk.CTkFont(size=11), text_color="gray", justify="left"
+        ).pack(anchor="w", padx=15, pady=(0, 15))
+
+        # Transactions Card
+        tx_card = ctk.CTkFrame(right_col, corner_radius=8, fg_color=("#D0D0D0", "#333333"))
+        tx_card.pack(fill="x", padx=20, pady=(0, 10))
+
+        ctk.CTkCheckBox(
+            tx_card, text="Transactions",
+            variable=self.table_transactions,
+            font=ctk.CTkFont(size=14, weight="bold")
+        ).pack(anchor="w", padx=15, pady=(15, 5))
+
+        ctk.CTkLabel(
+            tx_card, text="~150 MB per day\nTransaction inputs and outputs",
+            font=ctk.CTkFont(size=11), text_color="gray", justify="left"
+        ).pack(anchor="w", padx=15, pady=(0, 15))
+
+        # Outputs Card
+        outputs_card = ctk.CTkFrame(right_col, corner_radius=8, fg_color=("#D0D0D0", "#333333"))
+        outputs_card.pack(fill="x", padx=20, pady=(0, 10))
+
+        ctk.CTkCheckBox(
+            outputs_card, text="Outputs",
+            variable=self.table_outputs,
+            font=ctk.CTkFont(size=14, weight="bold")
+        ).pack(anchor="w", padx=15, pady=(15, 5))
+
+        ctk.CTkLabel(
+            outputs_card, text="~250 MB per day\nUTXO details and addresses",
+            font=ctk.CTkFont(size=11), text_color="gray", justify="left"
+        ).pack(anchor="w", padx=15, pady=(0, 15))
+
+        # Bottom Navigation
+        nav_frame = ctk.CTkFrame(view, fg_color="transparent")
+        nav_frame.grid(row=4, column=0, columnspan=2, sticky="ew", pady=(15, 0))
+        nav_frame.grid_columnconfigure(0, weight=1)
 
         ctk.CTkButton(
-            size_frame, text="Calculate Download Size",
-            command=self.calculate_size, height=35
-        ).pack(pady=(0, 15))
-
-        # Control Buttons
-        button_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
-        button_frame.grid(row=5, column=0, sticky="ew", pady=(0, 15))
-
-        self.start_button = ctk.CTkButton(
-            button_frame, text="▶ Start Download",
-            command=self.start_download,
-            height=40, font=ctk.CTkFont(size=14, weight="bold"),
+            nav_frame, text="Next: Calculate Size →",
+            command=self.goto_calculate_view,
+            height=45, font=ctk.CTkFont(size=14, weight="bold"),
             fg_color=("#2CC985", "#2FA572"), hover_color=("#28B872", "#298F65")
+        ).grid(row=0, column=1, sticky="e")
+
+    def show_calculate_view(self):
+        """Show View 2: Size Calculation."""
+        self.clear_content()
+        self.update_stepper(2)
+
+        view = ctk.CTkFrame(self.content_frame, fg_color="transparent")
+        view.grid(row=0, column=0, sticky="nsew")
+        view.grid_columnconfigure(0, weight=1)
+        view.grid_rowconfigure(1, weight=1)
+
+        # Title
+        title_frame = ctk.CTkFrame(view, fg_color="transparent")
+        title_frame.grid(row=0, column=0, sticky="ew", pady=(0, 20))
+
+        ctk.CTkLabel(
+            title_frame, text="📊 Download Size Calculation",
+            font=ctk.CTkFont(size=22, weight="bold")
+        ).pack()
+
+        # Main content area
+        content = ctk.CTkFrame(view, corner_radius=10)
+        content.grid(row=1, column=0, sticky="nsew")
+        content.grid_columnconfigure(0, weight=1)
+        content.grid_rowconfigure(0, weight=1)
+
+        # Size display area
+        size_area = ctk.CTkFrame(content, fg_color="transparent")
+        size_area.grid(row=0, column=0, sticky="nsew", padx=40, pady=40)
+
+        # Configuration Summary
+        summary_frame = ctk.CTkFrame(size_area, corner_radius=8, fg_color=("#D0D0D0", "#333333"))
+        summary_frame.pack(fill="x", pady=(0, 20))
+
+        ctk.CTkLabel(
+            summary_frame, text="Configuration Summary",
+            font=ctk.CTkFont(size=16, weight="bold")
+        ).pack(anchor="w", padx=20, pady=(15, 10))
+
+        self.summary_text = ctk.CTkLabel(
+            summary_frame, text="", font=ctk.CTkFont(size=13),
+            justify="left", anchor="w"
         )
-        self.start_button.pack(side="left", padx=5, expand=True, fill="x")
+        self.summary_text.pack(anchor="w", padx=20, pady=(0, 15))
 
-        self.pause_button = ctk.CTkButton(
-            button_frame, text="⏸ Pause",
-            command=self.pause_download, state="disabled",
-            height=40, font=ctk.CTkFont(size=14),
-            fg_color=("#FF9500", "#FF9500"), hover_color=("#E68600", "#E68600")
+        # Size Result
+        self.size_result_frame = ctk.CTkFrame(size_area, corner_radius=8, fg_color=("#E8F4FD", "#1a3a4a"))
+        self.size_result_frame.pack(fill="both", expand=True, pady=(0, 20))
+
+        self.size_result_label = ctk.CTkLabel(
+            self.size_result_frame, text="Click 'Calculate' to see download size",
+            font=ctk.CTkFont(size=16), text_color="gray"
         )
-        self.pause_button.pack(side="left", padx=5, expand=True, fill="x")
+        self.size_result_label.pack(expand=True, pady=40)
 
-        self.cancel_button = ctk.CTkButton(
-            button_frame, text="⏹ Cancel",
-            command=self.cancel_download, state="disabled",
-            height=40, font=ctk.CTkFont(size=14),
-            fg_color=("#FF3B30", "#FF453A"), hover_color=("#E6352A", "#E63E34")
+        # Calculate Button
+        calc_btn_frame = ctk.CTkFrame(size_area, fg_color="transparent")
+        calc_btn_frame.pack(fill="x")
+
+        ctk.CTkButton(
+            calc_btn_frame, text="🔄 Calculate Size",
+            command=self.calculate_size_new,
+            height=45, font=ctk.CTkFont(size=14, weight="bold"),
+            fg_color=("#1f538d", "#3b8ed0")
+        ).pack(side="left", expand=True, fill="x", padx=(0, 10))
+
+        self.start_download_btn = ctk.CTkButton(
+            calc_btn_frame, text="Start Download →",
+            command=self.goto_download_view,
+            height=45, font=ctk.CTkFont(size=14, weight="bold"),
+            fg_color=("#2CC985", "#2FA572"), hover_color=("#28B872", "#298F65"),
+            state="disabled"
         )
-        self.cancel_button.pack(side="left", padx=5, expand=True, fill="x")
+        self.start_download_btn.pack(side="left", expand=True, fill="x", padx=(10, 0))
 
-        # Progress Section
-        progress_frame = ctk.CTkFrame(main_frame, corner_radius=10)
-        progress_frame.grid(row=6, column=0, sticky="nsew", pady=(0, 0))
+        # Bottom Navigation
+        nav_frame = ctk.CTkFrame(view, fg_color="transparent")
+        nav_frame.grid(row=2, column=0, sticky="ew", pady=(15, 0))
 
-        ctk.CTkLabel(progress_frame, text="📥 Download Progress", font=ctk.CTkFont(size=14, weight="bold")).pack(
-            anchor="w", padx=15, pady=(15, 10)
-        )
+        ctk.CTkButton(
+            nav_frame, text="← Back to Configure",
+            command=self.show_config_view,
+            height=40, font=ctk.CTkFont(size=13),
+            fg_color=("#505050", "#404040")
+        ).pack(side="left")
 
-        # Overall Progress
+        # Auto-populate summary
+        self.update_config_summary()
+
+    def show_download_view(self):
+        """Show View 3: Download Progress."""
+        self.clear_content()
+        self.update_stepper(3)
+
+        view = ctk.CTkFrame(self.content_frame, fg_color="transparent")
+        view.grid(row=0, column=0, sticky="nsew")
+        view.grid_columnconfigure(0, weight=1)
+        view.grid_rowconfigure(1, weight=1)
+
+        # Overall Progress Bar (Top)
+        progress_top = ctk.CTkFrame(view, corner_radius=10)
+        progress_top.grid(row=0, column=0, sticky="ew", pady=(0, 15))
+
+        ctk.CTkLabel(
+            progress_top, text="📥 Overall Progress",
+            font=ctk.CTkFont(size=16, weight="bold")
+        ).pack(anchor="w", padx=20, pady=(15, 10))
+
         self.progress_var = ctk.DoubleVar()
-        self.progress_bar = ctk.CTkProgressBar(progress_frame, variable=self.progress_var, height=20)
-        self.progress_bar.pack(fill="x", padx=15, pady=(0, 5))
+        self.progress_bar = ctk.CTkProgressBar(progress_top, variable=self.progress_var, height=25)
+        self.progress_bar.pack(fill="x", padx=20, pady=(0, 5))
         self.progress_bar.set(0)
 
-        self.progress_label = ctk.CTkLabel(progress_frame, text="Ready to download", anchor="w")
-        self.progress_label.pack(fill="x", padx=15, pady=(0, 10))
+        self.progress_label = ctk.CTkLabel(
+            progress_top, text="Ready to start download...",
+            font=ctk.CTkFont(size=13), anchor="w"
+        )
+        self.progress_label.pack(fill="x", padx=20, pady=(0, 15))
+
+        # Main Content Area
+        main_content = ctk.CTkFrame(view, fg_color="transparent")
+        main_content.grid(row=1, column=0, sticky="nsew")
+        main_content.grid_columnconfigure(1, weight=1)
+        main_content.grid_rowconfigure(0, weight=1)
+
+        # Left: Stats Panel
+        stats_panel = ctk.CTkFrame(main_content, corner_radius=10, width=300)
+        stats_panel.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
+        stats_panel.grid_propagate(False)
+
+        ctk.CTkLabel(
+            stats_panel, text="📊 Statistics",
+            font=ctk.CTkFont(size=16, weight="bold")
+        ).pack(anchor="w", padx=20, pady=(20, 15))
 
         # File Progress
+        file_prog_container = ctk.CTkFrame(stats_panel, fg_color=("#D0D0D0", "#333333"), corner_radius=8)
+        file_prog_container.pack(fill="x", padx=15, pady=(0, 10))
+
+        ctk.CTkLabel(
+            file_prog_container, text="Current File",
+            font=ctk.CTkFont(size=12, weight="bold")
+        ).pack(anchor="w", padx=15, pady=(10, 5))
+
         self.file_progress_var = ctk.DoubleVar()
-        self.file_progress_bar = ctk.CTkProgressBar(progress_frame, variable=self.file_progress_var, height=15)
+        self.file_progress_bar = ctk.CTkProgressBar(
+            file_prog_container, variable=self.file_progress_var, height=18
+        )
         self.file_progress_bar.pack(fill="x", padx=15, pady=(0, 5))
         self.file_progress_bar.set(0)
 
-        self.file_progress_label = ctk.CTkLabel(progress_frame, text="", anchor="w")
+        self.file_progress_label = ctk.CTkLabel(
+            file_prog_container, text="Waiting...",
+            font=ctk.CTkFont(size=11), anchor="w"
+        )
         self.file_progress_label.pack(fill="x", padx=15, pady=(0, 10))
 
-        # Log Text
-        self.log_text = ctk.CTkTextbox(progress_frame, height=200, wrap="word")
+        # Control Buttons
+        button_container = ctk.CTkFrame(stats_panel, fg_color="transparent")
+        button_container.pack(fill="x", padx=15, pady=(20, 0))
+
+        self.pause_button = ctk.CTkButton(
+            button_container, text="⏸ Pause",
+            command=self.pause_download,
+            height=38, font=ctk.CTkFont(size=13),
+            fg_color=("#FF9500", "#FF9500"), hover_color=("#E68600", "#E68600")
+        )
+        self.pause_button.pack(fill="x", pady=(0, 8))
+
+        self.cancel_button = ctk.CTkButton(
+            button_container, text="⏹ Cancel",
+            command=self.cancel_download,
+            height=38, font=ctk.CTkFont(size=13),
+            fg_color=("#FF3B30", "#FF453A"), hover_color=("#E6352A", "#E63E34")
+        )
+        self.cancel_button.pack(fill="x")
+
+        # Right: Activity Log
+        log_panel = ctk.CTkFrame(main_content, corner_radius=10)
+        log_panel.grid(row=0, column=1, sticky="nsew", padx=(10, 0))
+
+        ctk.CTkLabel(
+            log_panel, text="📋 Activity Log",
+            font=ctk.CTkFont(size=16, weight="bold")
+        ).pack(anchor="w", padx=20, pady=(20, 10))
+
+        self.log_text = ctk.CTkTextbox(log_panel, wrap="word", font=ctk.CTkFont(size=11))
         self.log_text.pack(fill="both", expand=True, padx=15, pady=(0, 15))
+
+    # Navigation functions
+    def goto_calculate_view(self):
+        """Navigate to calculate view with validation."""
+        # Validate inputs
+        if not self.output_dir.get():
+            messagebox.showerror("Error", "Please select an output directory")
+            return
+
+        try:
+            start = self.parse_date(self.start_date.get())
+            end = self.parse_date(self.end_date.get())
+        except ValueError as e:
+            messagebox.showerror("Error", str(e))
+            return
+
+        tables = self.get_selected_tables()
+        if not tables:
+            messagebox.showerror("Error", "Please select at least one table")
+            return
+
+        if start > end:
+            messagebox.showerror("Error", "Start date must be before end date")
+            return
+
+        # Navigate to calculate view
+        self.show_calculate_view()
+
+    def goto_download_view(self):
+        """Navigate to download view and start download."""
+        self.show_download_view()
+        # Auto-start download
+        self.root.after(500, self.start_download_internal)
+
+    def update_config_summary(self):
+        """Update configuration summary in calculate view."""
+        try:
+            start = self.parse_date(self.start_date.get())
+            end = self.parse_date(self.end_date.get())
+            days = (end - start).days + 1
+            tables = self.get_selected_tables()
+
+            summary = f"📁 Directory: {self.output_dir.get() or 'Not set'}\n"
+            summary += f"📅 Period: {self.start_date.get()} to {self.end_date.get()} ({days} days)\n"
+            summary += f"📊 Tables: {', '.join(tables) if tables else 'None selected'}\n"
+            summary += f"⚙️  Remove .gz: {'Yes' if self.remove_gz.get() else 'No'}"
+
+            self.summary_text.configure(text=summary)
+        except:
+            self.summary_text.configure(text="Invalid configuration")
+
+    def calculate_size_new(self):
+        """Calculate and display download size."""
+        try:
+            start = self.parse_date(self.start_date.get())
+            end = self.parse_date(self.end_date.get())
+            tables = self.get_selected_tables()
+
+            if not tables:
+                messagebox.showerror("Error", "Please select at least one table")
+                return
+
+            if start > end:
+                messagebox.showerror("Error", "Start date must be before end date")
+                return
+
+            # Calculate
+            downloader = BlockchairDownloader(self.output_dir.get() or "/tmp")
+            compressed_gb, uncompressed_gb = downloader.estimate_size(start, end, tables)
+
+            self.calculated_size_compressed = compressed_gb
+            self.calculated_size_uncompressed = uncompressed_gb
+
+            days = (end - start).days + 1
+
+            # Clear old result
+            for widget in self.size_result_frame.winfo_children():
+                widget.destroy()
+
+            # Display result
+            result_container = ctk.CTkFrame(self.size_result_frame, fg_color="transparent")
+            result_container.pack(expand=True, pady=30)
+
+            ctk.CTkLabel(
+                result_container, text="💾 Estimated Download Size",
+                font=ctk.CTkFont(size=18, weight="bold")
+            ).pack(pady=(0, 15))
+
+            size_text = f"📦 Compressed (.gz): ~{compressed_gb:.1f} GB\n"
+            size_text += f"📂 Uncompressed (.tsv): ~{uncompressed_gb:.1f} GB\n\n"
+
+            if self.remove_gz.get():
+                size_text += f"💿 Total disk space needed: ~{uncompressed_gb:.1f} GB"
+            else:
+                size_text += f"💿 Total disk space needed: ~{compressed_gb + uncompressed_gb:.1f} GB"
+
+            ctk.CTkLabel(
+                result_container, text=size_text,
+                font=ctk.CTkFont(size=14), justify="left"
+            ).pack()
+
+            # Enable start button
+            self.start_download_btn.configure(state="normal")
+
+        except Exception as e:
+            messagebox.showerror("Error", str(e))
 
     def check_for_incomplete_downloads(self):
         """Check for incomplete downloads and offer to resume."""
@@ -646,42 +1006,6 @@ class DownloaderGUI:
         except ValueError:
             raise ValueError(f"Invalid date format: {date_str}. Use YYYY-MM-DD")
 
-    def calculate_size(self):
-        """Calculate and display estimated size."""
-        try:
-            start = self.parse_date(self.start_date.get())
-            end = self.parse_date(self.end_date.get())
-            tables = self.get_selected_tables()
-
-            if not tables:
-                messagebox.showerror("Error", "Please select at least one table")
-                return
-
-            if start > end:
-                messagebox.showerror("Error", "Start date must be before end date")
-                return
-
-            # Calculate
-            downloader = BlockchairDownloader(self.output_dir.get() or "/tmp")
-            compressed_gb, uncompressed_gb = downloader.estimate_size(start, end, tables)
-
-            days = (end - start).days + 1
-
-            # Display
-            text = f"📊 Estimated Size for {days} days:\n"
-            text += f"   Compressed (.gz): ~{compressed_gb:.1f} GB\n"
-            text += f"   Uncompressed (.tsv): ~{uncompressed_gb:.1f} GB\n"
-
-            if self.remove_gz.get():
-                text += f"   Total (with --remove-gz): ~{uncompressed_gb:.1f} GB"
-            else:
-                text += f"   Total (keeping .gz): ~{compressed_gb + uncompressed_gb:.1f} GB"
-
-            self.size_label.config(text=text)
-
-        except Exception as e:
-            messagebox.showerror("Error", str(e))
-
     def log(self, message: str):
         """Add message to log."""
         self.log_queue.put(message)
@@ -699,65 +1023,36 @@ class DownloaderGUI:
         # Schedule next check
         self.root.after(100, self.process_log_queue)
 
-    def start_download(self):
-        """Start download in background thread."""
+    def start_download_internal(self):
+        """Start download in background thread (called from download view)."""
         if self.is_downloading:
-            messagebox.showwarning("Warning", "Download already in progress")
-            return
-
-        # Validate inputs
-        if not self.output_dir.get():
-            messagebox.showerror("Error", "Please select an output directory")
             return
 
         try:
             start = self.parse_date(self.start_date.get())
             end = self.parse_date(self.end_date.get())
-        except ValueError as e:
+            tables = self.get_selected_tables()
+
+            # Create output directory
+            output_path = Path(self.output_dir.get())
+            output_path.mkdir(parents=True, exist_ok=True)
+
+            # Start download thread
+            self.is_downloading = True
+            self.log_text.delete("1.0", "end")
+            self.progress_var.set(0)
+            self.file_progress_var.set(0)
+
+            self.download_thread = threading.Thread(
+                target=self.download_worker,
+                args=(start, end, tables),
+                daemon=True
+            )
+            self.download_thread.start()
+
+        except Exception as e:
             messagebox.showerror("Error", str(e))
-            return
-
-        tables = self.get_selected_tables()
-        if not tables:
-            messagebox.showerror("Error", "Please select at least one table")
-            return
-
-        if start > end:
-            messagebox.showerror("Error", "Start date must be before end date")
-            return
-
-        # Create output directory
-        output_path = Path(self.output_dir.get())
-        output_path.mkdir(parents=True, exist_ok=True)
-
-        # Confirm
-        days = (end - start).days + 1
-        confirm = messagebox.askyesno(
-            "Confirm Download",
-            f"Download {days} days of data for {len(tables)} table(s)?\n\n"
-            f"This may take several hours.\n"
-            f"You can pause and resume anytime.\n"
-            f"Already downloaded files will be skipped automatically."
-        )
-
-        if not confirm:
-            return
-
-        # Start download thread
-        self.is_downloading = True
-        self.start_button.configure(state="disabled")
-        self.pause_button.configure(state="normal", text="⏸ Pause")
-        self.cancel_button.configure(state="normal")
-        self.log_text.delete("1.0", "end")
-        self.progress_var.set(0)
-        self.file_progress_var.set(0)
-
-        self.download_thread = threading.Thread(
-            target=self.download_worker,
-            args=(start, end, tables),
-            daemon=True
-        )
-        self.download_thread.start()
+            self.is_downloading = False
 
     def pause_download(self):
         """Pause/resume download."""
@@ -864,9 +1159,6 @@ class DownloaderGUI:
 
         finally:
             self.is_downloading = False
-            self.start_button.configure(state="normal")
-            self.pause_button.configure(state="disabled")
-            self.cancel_button.configure(state="disabled")
             self.downloader = None
 
     def run(self):
