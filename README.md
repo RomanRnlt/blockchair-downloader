@@ -1,134 +1,112 @@
-# Blockchair Downloader
+<div align="center">
+  <h1>Blockchair Downloader</h1>
+  <h3>Desktop GUI for Bitcoin Blockchain Data Dumps</h3>
+  <p>
+    <img src="https://img.shields.io/badge/python-≥3.9-blue" alt="Python">
+    <img src="https://img.shields.io/badge/gui-CustomTkinter-orange" alt="GUI">
+    <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey" alt="Platform">
+    <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
+  </p>
+</div>
 
-Modern GUI tool to download Bitcoin blockchain data from Blockchair dumps.
+**Blockchair Downloader** is a cross-platform desktop app that downloads Bitcoin blockchain data from [Blockchair](https://gz.blockchair.com/bitcoin/) public dumps. 3-step wizard: configure dates, preview sizes, download with pause/resume. Downloads all four core tables — blocks, transactions, inputs, and outputs.
 
-![Python](https://img.shields.io/badge/python-3.9+-blue.svg)
-![License](https://img.shields.io/badge/license-MIT-green.svg)
-![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey.svg)
+## Key Features
 
-## ✨ Features
+- **Pause / Resume / Cancel** — Pause mid-download and pick up where you left off. Cancel preserves partial progress.
+- **Auto-Resume on Restart** — Saves state to `.download_state.json`. Detects incomplete downloads on launch and offers to continue.
+- **Skip Already Downloaded** — Checks for existing `.tsv` files before downloading. Re-running is safe.
+- **Size Preview** — Fetches actual file sizes from Blockchair before downloading. Shows compressed + estimated uncompressed totals.
+- **Smart Extraction** — Downloads `.tsv.gz`, extracts to `.tsv`, optionally deletes compressed files to save ~60–70% disk space.
+- **Date Presets** — Quick buttons for 1 week, 1 month, quarter, or full year ranges.
 
-- **Modern Dark Mode UI** - Clean, professional interface built with CustomTkinter
-- **Pause/Resume** - Pause downloads anytime, resume later (even after closing the app)
-- **Auto-Resume** - Automatically detects incomplete downloads on restart
-- **Progress Tracking** - Real-time progress bars with ETA calculation
-- **Failsafe** - Already downloaded files are automatically skipped
-- **Cross-Platform** - Works on macOS, Windows, and Linux
+## 3-Step Wizard
 
-## 🚀 Quick Start
+| Step | What happens |
+|---|---|
+| **1. Configure** | Set output directory, date range, and options |
+| **2. Calculate Size** | Preview download size per table + total |
+| **3. Download** | Live progress bars, speed indicator, activity log |
 
-### Installation
+## Output Structure
+
+```
+output_dir/
+└── bitcoin_blockchain_2024-01-01_to_2024-01-31/
+    ├── raw/
+    │   ├── blocks/          .tsv.gz (deleted if remove_gz enabled)
+    │   ├── transactions/
+    │   ├── inputs/
+    │   └── outputs/
+    └── extracted/
+        ├── blocks/          .tsv files ready to use
+        ├── transactions/
+        ├── inputs/
+        └── outputs/
+```
+
+## Download Size Reference
+
+| Period | Compressed | Uncompressed |
+|---|---|---|
+| 1 day | ~250 MB | ~650 MB |
+| 1 week | ~1.5 GB | ~4 GB |
+| 1 month | ~7 GB | ~18 GB |
+| 1 quarter | ~20 GB | ~50 GB |
+| 1 year | ~80 GB | ~200 GB |
+
+## Quick Start
 
 ```bash
 pip install blockchair-downloader
-```
-
-### Usage
-
-```bash
 blockchair-downloader
 ```
 
-That's it! The GUI will open automatically.
+### From Source
 
-## 📋 Requirements
-
-**macOS:**
 ```bash
-brew install python-tk@3.13
+git clone https://github.com/RomanRnlt/blockchair-downloader.git
+cd blockchair-downloader
+pip install -e .
+blockchair-downloader
 ```
 
-**Windows:**
-- Python 3.9+ from [python.org](https://python.org) (includes tkinter)
+### Platform Prerequisites (tkinter)
 
-**Linux:**
-```bash
-sudo apt-get install python3-tk  # Ubuntu/Debian
-```
+| Platform | Command |
+|---|---|
+| macOS | `brew install python-tk` |
+| Ubuntu/Debian | `sudo apt-get install python3-tk` |
+| Windows | Included with python.org installer |
 
-## 🎯 How to Use
+## Tech Stack
 
-1. **Select Output Directory** - Choose where to save downloaded data
-2. **Choose Date Range** - Use presets (Year 2021, Q1 2021) or custom dates
-3. **Select Tables** - Blocks, Transactions, and/or Outputs
-4. **Calculate Size** - See estimated download size before starting
-5. **Start Download** - Click and relax! Pause/resume anytime
+| Component | Technology |
+|---|---|
+| Language | Python 3.9+ |
+| GUI | CustomTkinter (dark-mode tkinter wrapper) |
+| Downloads | urllib (stdlib) |
+| Extraction | gzip + shutil (stdlib) |
+| State | JSON file persistence |
+| Threading | Background downloads, responsive UI |
 
-## 💾 Download Size Estimates
+## Use Cases
 
-| Period | Size (uncompressed) |
-|--------|---------------------|
-| 1 Day | ~1.3 GB |
-| 1 Week | ~9 GB |
-| 1 Month | ~40 GB |
-| Q1 2021 | ~120 GB |
-| Year 2021 | ~480 GB |
+- **Research** — Academic analysis of Bitcoin transaction patterns
+- **Machine Learning** — Training data for blockchain entity resolution
+- **Entity Clustering** — Feed into whale detection pipelines (see [Bitcoin Whale Intelligence](https://github.com/RomanRnlt/bitcoin-whale-intelligence))
+- **Data Archival** — Local backup of blockchain history
 
-*Note: .gz files are automatically deleted after extraction (saves ~70% disk space)*
-
-## 🔧 Troubleshooting
+## Troubleshooting
 
 ### "No module named '_tkinter'"
 
-**macOS:**
-```bash
-brew install python-tk@3.13
-```
+| Platform | Fix |
+|---|---|
+| macOS | `brew install python-tk` |
+| Windows | Reinstall Python from python.org, check "tcl/tk" option |
+| Linux | `sudo apt-get install python3-tk` |
 
-**Windows:**
-Reinstall Python from [python.org](https://python.org) and check the "tcl/tk" option
+## License
 
-**Linux:**
-```bash
-sudo apt-get install python3-tk
-```
-
-### "No module named 'customtkinter'"
-
-```bash
-pip install --upgrade blockchair-downloader
-```
-
-## 📖 About
-
-This tool downloads Bitcoin blockchain data from [Blockchair](https://blockchair.com) dumps in TSV format. Perfect for:
-
-- Blockchain research and analysis
-- Machine learning on Bitcoin data
-- Entity resolution and clustering
-- Academic projects and theses
-
-Data is downloaded from: `https://gz.blockchair.com/bitcoin/`
-
-## 🛠️ Development
-
-```bash
-# Clone repository
-git clone https://github.com/RomanRnlt/blockchair-downloader
-cd blockchair-downloader
-
-# Install in development mode
-pip install -e .
-
-# Run
-blockchair-downloader
-```
-
-## 📄 License
-
-MIT License - see [LICENSE](LICENSE) file for details
-
-## 🙏 Credits
-
-- Data source: [Blockchair](https://blockchair.com)
-- UI framework: [CustomTkinter](https://github.com/TomSchimansky/CustomTkinter)
-- Built for the [Bitcoin Whale Intelligence](https://github.com/RomanRnlt/bitcoin-whale-intelligence) project
-
-## 📬 Support
-
-- **Issues**: [GitHub Issues](https://github.com/RomanRnlt/blockchair-downloader/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/RomanRnlt/blockchair-downloader/discussions)
-
----
-
-Made with ❤️ for Bitcoin blockchain researchers
+MIT — see [LICENSE](LICENSE)
